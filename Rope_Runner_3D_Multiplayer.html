@@ -127,7 +127,7 @@ body.wide #joy{pointer-events:auto;opacity:.85}
  <div id="toast"></div><div id="chatlog"></div>
  <div id="chat" hidden><div class="cq" id="cq"></div><div class="cin"><input id="ci" maxlength="100" placeholder="Napiš zprávu…" autocomplete="off"><button id="csend">Poslat</button><button id="cx">✕</button></div></div>
  <div id="panel" hidden></div><div id="hk" hidden></div><div id="adm" hidden></div><div id="st" hidden></div>
- <div id="login"><div class="lbox"><h2>Rope Runner 3D</h2><p>Přihlas se, nebo hraj jako host.</p><p>📱 Na mobilu otoč telefon na šířku. Hra se po přihlášení přepne na celou obrazovku (tlačítko ⛶).</p><input id="lu" placeholder="Jméno" autocomplete="username" maxlength="20"><input id="lp" type="password" placeholder="Heslo (jen creator)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"><div id="lerr"></div><button id="lgo">Přihlásit</button><button id="lguest">Hrát jako host</button></div></div>
+ <div id="login"><div class="lbox"><h2>Rope Runner 3D</h2><p>Přihlas se, nebo hraj jako host.</p><p>📱 Na mobilu otoč telefon na šířku. Hra se po přihlášení přepne na celou obrazovku (📱 → ⛶ Celá obr.).</p><input id="lu" placeholder="Jméno" autocomplete="username" maxlength="20"><input id="lp" type="password" placeholder="Heslo (jen creator)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"><div id="lerr"></div><button id="lgo">Přihlásit</button><button id="lguest">Hrát jako host</button></div></div>
 </div>
 <div id="ctrl"><div id="joy"><div id="joyk"></div></div><div id="pad"><span></span><button id="bw" aria-label="Vpřed">W</button><span></span><button id="bl" aria-label="Doleva">A</button><button id="bs" aria-label="Zpět">S</button><button id="br" aria-label="Doprava">D</button></div><div id="side"><button id="btr">TRIK</button><button id="bro">LANO</button><button id="bai">MÍŘ</button><button id="bfi">PAL</button></div></div>
 
@@ -710,21 +710,24 @@ function mpConnect(){
 var PHL=[];
 /* ===== Mobil 📱 ===== */
 (function(){
- const st=document.createElement('style');st.textContent=`#phone{position:absolute;right:10px;bottom:10px;width:min(290px,92vw);height:min(540px,94%);z-index:23;border-radius:32px;background:#080c18;border:6px solid #232a40;box-shadow:0 10px 40px #000a;display:flex;flex-direction:column;overflow:hidden;color:#fff;font:13px sans-serif}#phone[hidden]{display:none}
+ const st=document.createElement('style');st.textContent=`#phone{position:absolute;right:10px;top:56px;width:min(270px,92vw);height:min(500px,calc(100% - 176px));min-height:210px;z-index:23;border-radius:32px;background:#080c18;border:6px solid #232a40;box-shadow:0 10px 40px #000a;display:flex;flex-direction:column;overflow:hidden;color:#fff;font:13px sans-serif}#phone[hidden]{display:none}
 #phb{display:flex;justify-content:space-between;padding:8px 18px 4px;font-size:12px;opacity:.85}#phs{flex:1;min-height:0;overflow:auto;padding:6px 12px;display:flex;flex-direction:column}#phn{display:flex;gap:6px;padding:6px 10px;border-top:1px solid #fff2}#phn button{flex:1}
 #phone button{background:#1b2540;color:#fff;border:1px solid #fff3;border-radius:12px;padding:8px;font:inherit}#phone input,#phone select{background:#101830;color:#fff;border:1px solid #fff3;border-radius:8px;padding:7px;font:inherit;width:100%;box-sizing:border-box;margin:3px 0}
-.pha{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}.pha button{aspect-ratio:1;font-size:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}.pha small{font-size:10px}
-.phm{padding:3px 0;border-bottom:1px solid #fff1;word-break:break-word}`;document.head.appendChild(st);
+.pha{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:10px}.pha button{aspect-ratio:1;font-size:22px;padding:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}.pha small{font-size:9px}
+.phm{padding:3px 0;border-bottom:1px solid #fff1;word-break:break-word}
+#hudR #bmenu,#hudR #bgun,#hudR #bspawn,#hudR #btod,#hudR #bfs,#hudR #bhk,#hudR #bpl,#hudR #bmap,#hudR #bchat,#hudR #bst{display:none!important}`;document.head.appendChild(st);
  const ph=document.createElement('div');ph.id='phone';ph.hidden=true;$('view').appendChild(ph);
  const E=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),fm=n=>String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,' ');
  const clk=()=>{const h=Math.floor(TOD.h),m=Math.floor((TOD.h-h)*60);return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');};
  const WC=[['☀️','Slunečno'],['⛅','Polojasno'],['☁️','Zataženo'],['🌦','Přeháňky'],['⛈','Bouřky']];
  const wxAt=(h,off)=>{let x=Math.sin((Math.floor(Date.now()/1800000)+off)*12.9898)*43758.5453;x-=Math.floor(x);const ci=x<0.4?0:x<0.65?1:x<0.85?2:x<0.95?3:4;return{ci,t:Math.round(11+8*Math.sin((h-9)/24*Math.PI*2)-(ci>=3?3:ci===2?1.5:0))};};
- const APPS=[['bank','🏦','Banka'],['chat','💬','Chat'],['wx','🌦','Počasí'],['map','🗺','Mapa'],['pl','👥','Hráči']];
+ const apps=()=>{const a=[['m','🎯','Mise'],['g','🔫','Zbraně'],['c','🔧','Tuning'],['bank','🏦','Banka'],['chat','💬','Chat'],['wx','🌦','Počasí'],['map','🗺','Mapa'],['pl','👥','Hráči'],['st','⚙','Nastavení'],['fs','⛶','Celá obr.']];
+  if(!$('bspawn').hidden)a.push(['sp','🚘','Auta']);if(!$('btod').hidden)a.push(['tod','🌅','Čas']);if(!$('bhk').hidden)a.push(['hk','🕹','Hack']);if(!$('bpl').hidden)a.push(['adm','🛡','Správa']);return a;};
+ const EXT={m:()=>togglePanel('m'),g:()=>togglePanel('g'),c:()=>togglePanel('c'),map:()=>openMap(),st:()=>$('bst').click(),sp:()=>togglePanel('s'),tod:()=>togglePanel('d'),hk:()=>$('bhk').click(),adm:()=>$('bpl').click()};
  let app='home',pend=[],note='',iv=0;
  const logHtml=()=>PHL.slice(-40).map(m=>'<div class="phm"><b style="color:'+(m[2]==='creator'?'#35e0ff':'#ffd166')+'">'+E(m[0])+':</b> '+E(m[1])+'</div>').join('')||'<div style="opacity:.6">Zatím žádné zprávy.</div>';
  function body(){
-  if(app==='home'){const w=wxAt(TOD.h,0);return '<div style="text-align:center;margin-top:6px"><div style="font-size:44px;font-weight:300">'+clk()+'</div><div style="opacity:.7">'+WC[w.ci][0]+' '+w.t+' °C · '+WC[w.ci][1]+'</div></div><div class="pha">'+APPS.map(a=>'<button data-a="'+a[0]+'">'+a[1]+'<small>'+a[2]+'</small></button>').join('')+'</div>';}
+  if(app==='home'){const w=wxAt(TOD.h,0);return '<div style="text-align:center;margin-top:6px"><div style="font-size:44px;font-weight:300">'+clk()+'</div><div style="opacity:.7">'+WC[w.ci][0]+' '+w.t+' °C · '+WC[w.ci][1]+'</div></div><div class="pha">'+apps().map(a=>'<button data-a="'+a[0]+'">'+a[1]+'<small>'+a[2]+'</small></button>').join('')+'</div>';}
   if(app==='bank'){
    const opts=[...MP.players.entries()].map(([id,q])=>'<option value="'+id+'">'+E(q.name)+'</option>').join('');
    const tx=PHX.slice(-8).reverse().map(t=>'<div class="phm" style="display:flex;justify-content:space-between"><span>'+E(t[2])+'</span><b style="color:'+(t[1]>0?'#7dff9b':'#ff7a7a')+'">'+(t[1]>0?'+':'−')+'$'+fm(Math.abs(t[1]))+'</b></div>').join('')||'<div style="opacity:.6">Zatím žádné pohyby.</div>';
@@ -742,14 +745,14 @@ var PHL=[];
   const s=$('phsend');if(s)s.onclick=send;
   const cs=$('phcs');if(cs){const ci=$('phci'),sd=()=>{const t=ci.value.trim();if(t){chatSend(t);ci.value='';}};cs.onclick=sd;ci.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();sd();}};const lg=$('phlog');lg.scrollTop=lg.scrollHeight;}
  }
- function go(a){if(a==='map'){close();openMap();return;}app=a;note='';render();}
+ function go(a){if(a==='fs'){$('bfs').click();return;}if(EXT[a]){close();EXT[a]();return;}app=a;note='';render();}
  function send(){const to=$('phto').value,a=Math.floor(+$('pham').value);
   if(!to)note='Vyber hráče.';else if(!(a>=1&&a<=1000000))note='Zadej částku 1 – 1 000 000.';else if(money<a)note='Nemáš dost peněz.';else if(!(MP.ws&&MP.ws.readyState===1))note='Jsi offline.';
   else{money-=a;save();pend.push(a);PHX.push([Date.now(),-a,'Převod → '+((MP.players.get(to)||{}).name||'?')]);MP.ws.send(JSON.stringify({type:'pay',to,amount:a}));note='Odesláno ✓';}
   render();}
  function open(){if(!$('login').hidden||!$('chat').hidden||!$('panel').hidden||!$('hk').hidden||!$('adm').hidden||!$('st').hidden||!MAPP.hidden)return;
-  Object.values(holds).forEach(x=>x.clear());app='home';note='';render();ph.hidden=false;paused=true;clearInterval(iv);iv=setInterval(()=>{const c=$('phclk');if(c)c.textContent=clk();},1000);}
- function close(){if(ph.hidden)return;ph.hidden=true;paused=false;clearInterval(iv);}
+  app='home';note='';render();ph.hidden=false;clearInterval(iv);iv=setInterval(()=>{const c=$('phclk');if(c)c.textContent=clk();if(app==='pl'||app==='wx')render();else if(app==='bank'&&document.activeElement.tagName!=='INPUT')render();},1000);}
+ function close(){if(ph.hidden)return;ph.hidden=true;clearInterval(iv);}
  window.phoneToggle=()=>ph.hidden?open():close();
  window.phoneRefresh=()=>{if(ph.hidden||app!=='chat')return;const lg=$('phlog');if(lg){lg.innerHTML=logHtml();lg.scrollTop=lg.scrollHeight;}};
  window.phoneMsg=m=>{
