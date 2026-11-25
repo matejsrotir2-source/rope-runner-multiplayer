@@ -163,6 +163,28 @@ wss.on('connection', ws => {
       }
       broadcast();
 
+    } else if (m.type === 'chat' && p.joined) {
+      const now = Date.now();
+      if (now - (p.lastChat || 0) < 800) return; // ochrana proti spamu
+      const text = String(m.text || '')
+        .replace(/[<>]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 100);
+      if (!text) return;
+      p.lastChat = now;
+
+      const out = JSON.stringify({
+        type: 'chat',
+        name: p.name,
+        text,
+        role: p.role || null
+      });
+      for (const [tws, t] of clients) {
+        if (!t.joined || t.room !== p.room) continue;
+        if (tws.readyState === WebSocket.OPEN) tws.send(out);
+      }
+
     } else if (m.type === 'state' && p.joined) {
       const vals = [m.x, m.y, m.z, m.yaw].map(Number);
 

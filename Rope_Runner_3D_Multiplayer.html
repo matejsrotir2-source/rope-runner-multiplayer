@@ -73,13 +73,39 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .lbox button{border-radius:10px;border:1px solid #ffffff33;background:#14213d;color:#fff;padding:12px;font-size:16px}
 .lbox button#lgo{background:#2ec4b6;color:#0b1426;font-weight:700;border:none}
 #lerr{min-height:18px;font-size:13px;color:#ff6b6b}
+#chatlog{position:absolute;left:10px;bottom:10px;max-width:72%;display:flex;flex-direction:column;gap:3px;pointer-events:none;text-shadow:0 1px 3px #000}
+#chatlog div{background:#0b1426b3;border-radius:8px;padding:4px 8px;font-size:13px;line-height:1.25;word-break:break-word;transition:opacity .6s}
+#chatlog div b{color:#35e0ff}#chatlog div b.cr{color:#ffd166}
+#chatlog div.old{opacity:0}
+#chat{position:absolute;left:0;right:0;bottom:0;z-index:25;background:#0a1030f7;border-top:1px solid #2e6bff;padding:10px;box-sizing:border-box}
+#chat[hidden]{display:none}
+#chat .cq{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+#chat .cq button{background:#14213d;color:#fff;border:1px solid #fff3;border-radius:14px;padding:7px 11px;font-size:13px}
+#chat .cin{display:flex;gap:6px}
+#chat input{flex:1;min-width:0;background:#14213d;border:1px solid #ffffff44;border-radius:10px;color:#fff;padding:10px;font-size:16px;outline:none;-webkit-user-select:text;user-select:text}
+#chat input:focus{border-color:#35e0ff}
+#chat .cin button{background:#2ec4b6;color:#0b1426;font-weight:700;border:none;border-radius:10px;padding:0 14px;font-size:14px}
+#chat .cin button#cx{background:#14213d;color:#fff;border:1px solid #fff3;font-weight:400}
+#mapp{position:absolute;inset:0;z-index:22;background:#0a1030f7;overflow:auto;padding:8px;box-sizing:border-box;font-size:13px}
+#mapp[hidden]{display:none}
+#mpwrap{position:relative;width:100%;height:0;padding-top:72.46%;margin-top:8px;border:1px solid #fff3;border-radius:10px;overflow:hidden}
+#mpwrap canvas{position:absolute;left:0;top:0;width:100%;height:100%}
+.mpi{position:absolute;transform:translate(-50%,-50%);background:#0b1426dd;border:1px solid #fff6;border-radius:50%;width:30px;height:30px;padding:0;font-size:17px;line-height:1;color:#fff}
+.mpi.sel{border-color:#ffd166;box-shadow:0 0 0 3px #ffd16655}
+#mpme{position:absolute;transform:translate(-50%,-50%);color:#35e0ff;font-size:20px;line-height:1;pointer-events:none;text-shadow:0 0 4px #000,0 0 2px #000}
+#mpinfo{margin-top:8px;background:#14213d;border:1px solid #ffffff33;border-radius:12px;padding:10px 12px}
+#mpinfo b{font-size:15px}
+#mpinfo p{margin:4px 0 8px;opacity:.85}
+#mpinfo .warn{color:#ffd166;opacity:1}
+#mpleg{margin-top:8px;opacity:.7;font-size:12px}
 </style>
 </head>
 <body>
 <div id="view"><canvas id="ov"></canvas>
  <div id="hudL"><div id="mt"></div><div id="mp"></div><div id="mpstatus" style="font-size:11px;color:#7dff9b">Offline</div><div id="mtime"></div><div id="mmoney"></div><div style="margin-top:4px;width:120px;height:8px;background:#0008;border-radius:4px;overflow:hidden"><div id="hpf" style="height:100%;width:100%;background:#e63946"></div></div><canvas id="mm" width="120" height="66" style="margin-top:5px;border-radius:6px;background:#0b1424cc;border:1px solid #fff3;display:block"></canvas></div>
- <div id="hudR"><button id="bmenu">Mise</button><button id="bgun">Zbraně</button><button id="bcar">Auto</button><button id="bhk" hidden>Hack</button><button id="bpl" hidden>Hráči</button><button id="bst" aria-label="Nastavení">⚙</button><div id="arrowbox"><div id="arrow">▲</div><div id="adist"></div></div><div id="spd"></div></div>
- <div id="toast"></div>
+ <div id="hudR"><button id="bmenu">Mise</button><button id="bgun">Zbraně</button><button id="bcar">Auto</button><button id="bhk" hidden>Hack</button><button id="bpl" hidden>Hráči</button><button id="bmap">🗺 Mapa</button><button id="bchat" aria-label="Chat">💬</button><button id="bst" aria-label="Nastavení">⚙</button><div id="arrowbox"><div id="arrow">▲</div><div id="adist"></div></div><div id="spd"></div></div>
+ <div id="toast"></div><div id="chatlog"></div>
+ <div id="chat" hidden><div class="cq" id="cq"></div><div class="cin"><input id="ci" maxlength="100" placeholder="Napiš zprávu…" autocomplete="off"><button id="csend">Poslat</button><button id="cx">✕</button></div></div>
  <div id="panel" hidden></div><div id="hk" hidden></div><div id="adm" hidden></div><div id="st" hidden></div>
  <div id="login"><div class="lbox"><h2>Rope Runner 3D</h2><p>Přihlas se, nebo hraj jako host.</p><input id="lu" placeholder="Jméno" autocomplete="username" maxlength="20"><input id="lp" type="password" placeholder="Heslo (jen creator)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"><div id="lerr"></div><button id="lgo">Přihlásit</button><button id="lguest">Hrát jako host</button></div></div>
 </div>
@@ -104,7 +130,7 @@ const WEAPONS=[
 {id:'rifle',name:'Útočná puška',price:1800,desc:'Přesná střelba na střední vzdálenost.'},
 {id:'sniper',name:'Odstřelovačka',price:2500,desc:'Obrovská síla, dosah přes půl mapy.'},
 {id:'bazooka',name:'Bazuka',price:3000,desc:'Těžká váha, velký třesk.'},
-{id:'minigun',name:'Minigun',price:5000,desc:'Palebná smršť.'}];
+{id:'minigun',name:'Minigun',price:1000000,desc:'Palebná smršť. Jen pro skutečné bankovní lupiče.'}];
 let money=0,owned=['fist'],equipped='fist',combo=0;const TUNE={armor:0,engine:0,spoiler:0,color:0};
 try{const sv0=JSON.parse(localStorage.getItem('rr3d')||'null');if(sv0&&sv0.t)Object.assign(TUNE,sv0.t);}catch(_){}
 try{const sv=JSON.parse(localStorage.getItem('rr3d')||'null');if(sv){money=sv.m|0;owned=sv.o||owned;equipped=sv.e||equipped;}}catch(_){}
@@ -228,6 +254,84 @@ SZ.forEach((z,zi)=>SX.forEach((x,xi)=>{
 [[-190,-70],[190,-70],[-190,70],[190,70]].forEach((t,i)=>{bmap[t[0]+','+t[1]]=building(t[0],t[1],18,18,16,COLORS[(i+3)%COLORS.length]);});
 const school=building(-60,0,30,14,4,'#e6dba8',{gable:true});
 const pizzeria=building(-60,-24,14,10,2,'#e3c7c0');
+
+
+// ===== DOMY NA PRODEJ (jižní park, podél silnice z=330) =====
+const HOUSES=(function(){
+ const list=[],HC=['#e8dcc4','#d9c2b0','#c7d3c2','#bcc9d6','#e2c9a0'],RC=[0x8a3b2e,0x5b4a3a,0x3d4f5c,0x6b3f3f,0x4a5a3a];
+ const NAMES=['Vila u parku','Domek u cesty','Zahradní vila','Rodinný dům','Dům u silnice'];
+ const roofSlab=new THREE.MeshLambertMaterial({color:0x6e737b});
+ [-380,-130,120,370,620].forEach((hx,i)=>{
+  const hz=362,wall=new THREE.MeshLambertMaterial({color:new THREE.Color(HC[i])});
+  const solid=(x,y0,z,sx,h2,sz,mat)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(sx,h2,sz),mat);m.position.set(x,y0+h2/2,z);m.castShadow=m.receiveShadow=true;scene.add(m);addBox(x,y0,z,sx,h2,sz);};
+  solid(hx-4.25,0,hz-5,5.5,5,0.6,wall);solid(hx+4.25,0,hz-5,5.5,5,0.6,wall);solid(hx,3,hz-5,3,2,0.6,wall);
+  solid(hx,0,hz+5,14,5,0.6,wall);solid(hx-7,0,hz,0.6,5,10,wall);solid(hx+7,0,hz,0.6,5,10,wall);
+  solid(hx,5,hz,15,0.6,11,roofSlab);
+  const rf=new THREE.Mesh(new THREE.ConeGeometry(1,1,4).rotateY(Math.PI/4),new THREE.MeshLambertMaterial({color:RC[i]}));
+  rf.scale.set(11.5,3.4,8.8);rf.position.set(hx,5.6+1.7,hz);rf.castShadow=true;scene.add(rf);
+  const flat=(w,d,c,x,y,z)=>{const o=new THREE.Mesh(new THREE.PlaneGeometry(w,d),new THREE.MeshLambertMaterial({color:c}));o.rotation.x=-Math.PI/2;o.position.set(x,y,z);o.receiveShadow=true;scene.add(o);return o;};
+  flat(13.4,9.4,0x9c7b52,hx,0.07,hz);flat(4,22,0x8c8c86,hx,0.035,346);
+  [-4.25,4.25].forEach(dx=>{const w2=new THREE.Mesh(new THREE.PlaneGeometry(2,1.4),new THREE.MeshBasicMaterial({color:0x6fa8dc}));w2.position.set(hx+dx,2.3,hz-5.32);w2.rotation.y=Math.PI;scene.add(w2);});
+  const fur=(w,h2,d,c,x,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h2,d),new THREE.MeshLambertMaterial({color:c}));m.position.set(x,h2/2+0.07,z);m.castShadow=true;scene.add(m);};
+  fur(2.2,0.6,1.4,0xb5483f,hx-5,hz+3.8);fur(2,0.8,1.2,0x7a5a3a,hx+3,hz+0.5);fur(3,0.7,1,0x3b5a8a,hx+3.5,hz+3.9);
+  // cedule "na prodej"
+  const cv=document.createElement('canvas');cv.width=256;cv.height=128;const g=cv.getContext('2d');
+  const tex=new THREE.CanvasTexture(cv);
+  const post=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,2.4,6),new THREE.MeshLambertMaterial({color:0x5b4a3a}));post.position.set(hx+6,1.2,hz-12);scene.add(post);
+  const sg=new THREE.Mesh(new THREE.PlaneGeometry(3,1.5),new THREE.MeshBasicMaterial({map:tex}));sg.position.set(hx+6,2.5,hz-12.1);sg.rotation.y=Math.PI;scene.add(sg);
+  const o={id:'h'+i,name:NAMES[i],x:hx,z:hz,spawn:new V3(hx,0.92,hz-14),
+   setOwned(b){g.fillStyle=b?'#1f7a3e':'#b3262e';g.fillRect(0,0,256,128);g.strokeStyle='#fff';g.lineWidth=4;g.strokeRect(5,5,246,118);
+    g.fillStyle='#fff';g.textAlign='center';g.textBaseline='middle';
+    if(b){g.font='bold 40px sans-serif';g.fillText('TVŮJ DŮM',128,64);}
+    else{g.font='bold 34px sans-serif';g.fillText('NA PRODEJ',128,40);g.font='bold 36px sans-serif';g.fillText('$250 000',128,88);}
+    tex.needsUpdate=true;}};
+  o.setOwned(false);list.push(o);
+ });
+ return list;
+})();
+
+// ===== BANKA (střed města, na chodníku mezi paneláky) =====
+const BANK=(function(){
+ const BX=60;
+ const M=(c,r)=>new THREE.MeshLambertMaterial({color:c});
+ const stone=M(0xd9d2c0),stone2=M(0xbfb7a3),wood=M(0x6b4f33),steel=new THREE.MeshStandardMaterial({color:0x6c7b8a,roughness:0.35,metalness:0.8}),roofM=M(0x7d838b),vwall=M(0x4a525c);
+ const solid=(x,y0,z,sx,h,sz,mat,sh)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(sx,h,sz),mat);m.position.set(x,y0+h/2,z);m.castShadow=m.receiveShadow=sh!==false;scene.add(m);return {m,b:addBox(x,y0,z,sx,h,sz)};};
+ // obvodové zdi (dveře široké 6 m uprostřed přední zdi, přivrácené k silnici z=-36)
+ solid(48.5,0,-15,17,8,1,stone);solid(71.5,0,-15,17,8,1,stone);solid(60,5.2,-15,6,2.8,1,stone);
+ solid(60,0,15,40,8,1,stone);solid(40,0,0,1,8,30,stone);solid(80,0,0,1,8,30,stone);
+ solid(60,8,0,42,1,32,roofM);
+ // pult s přepážkami
+ solid(60,0,-4,30,1.15,1.6,wood);
+ const top=new THREE.Mesh(new THREE.BoxGeometry(30.4,0.12,2),M(0xe2d9c5));top.position.set(60,1.21,-4);scene.add(top);
+ // trezor vzadu
+ solid(52,0,10.25,1,8,8.5,vwall);solid(68,0,10.25,1,8,8.5,vwall);
+ solid(54,0,6,4,8,1,vwall);solid(66,0,6,4,8,1,vwall);solid(60,4.8,6,8,3.2,1,vwall);
+ const vdoor=new THREE.Group();vdoor.position.set(60,2.4,6);scene.add(vdoor);
+ const dm=new THREE.Mesh(new THREE.BoxGeometry(8,4.8,0.8),steel);dm.castShadow=true;vdoor.add(dm);
+ const wheel=new THREE.Mesh(new THREE.TorusGeometry(0.9,0.12,8,20),new THREE.MeshStandardMaterial({color:0xc9a227,roughness:0.3,metalness:0.8}));wheel.position.z=-0.5;vdoor.add(wheel);
+ const bar=new THREE.Mesh(new THREE.BoxGeometry(1.9,0.14,0.14),wheel.material);bar.position.z=-0.5;vdoor.add(bar);
+ const vbox=addBox(60,0,6,8,4.8,0.9);
+ // hotovost v trezoru
+ const cash=new THREE.Group();cash.position.set(60,0,12);scene.add(cash);
+ const bill=[0x3f9d54,0x34884a,0x4aa862];
+ for(let i=0;i<9;i++){const r=Math.floor(i/3),c=i%3;const b=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.55,0.9),new THREE.MeshLambertMaterial({color:bill[(i+r)%3]}));b.position.set((c-1)*1.7,0.28+(r%2)*0.0,(r-1)*1.2);cash.add(b);}
+ for(let i=0;i<3;i++){const b=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.55,0.9),new THREE.MeshLambertMaterial({color:bill[i]}));b.position.set((i-1)*1.7,0.83,0);cash.add(b);}
+ // podlaha
+ const cv=document.createElement('canvas');cv.width=cv.height=128;const g=cv.getContext('2d');
+ for(let i=0;i<8;i++)for(let j=0;j<8;j++){g.fillStyle=(i+j)%2?'#b9b2a3':'#8d877b';g.fillRect(i*16,j*16,16,16);}
+ const ft=new THREE.CanvasTexture(cv);ft.wrapS=ft.wrapT=THREE.RepeatWrapping;ft.repeat.set(12,9);
+ const floor=new THREE.Mesh(new THREE.PlaneGeometry(39,29),new THREE.MeshLambertMaterial({map:ft}));floor.rotation.x=-Math.PI/2;floor.position.set(60,0.07,0);floor.receiveShadow=true;scene.add(floor);
+ // světla uvnitř
+ [[50,6.2,-1],[70,6.2,-1],[60,6.2,10]].forEach(p=>{const l=new THREE.PointLight(0xfff1d0,0.85,30,1.5);l.position.set(p[0],p[1],p[2]);scene.add(l);});
+ // vývěsní štít
+ const sc=document.createElement('canvas');sc.width=512;sc.height=96;const sg=sc.getContext('2d');
+ sg.fillStyle='#14213d';sg.fillRect(0,0,512,96);sg.strokeStyle='#ffd166';sg.lineWidth=4;sg.strokeRect(6,6,500,84);
+ sg.fillStyle='#ffd166';sg.font='bold 58px sans-serif';sg.textAlign='center';sg.textBaseline='middle';sg.fillText('$  BANKA  $',256,52);
+ const sign=new THREE.Mesh(new THREE.PlaneGeometry(14,2.6),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(sc)}));sign.position.set(60,6.6,-15.6);sign.rotation.y=Math.PI;scene.add(sign);
+ // sloupy před vchodem (jen dekorace)
+ [-5,5].forEach(dx=>{const c=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.5,5.2,12),stone2);c.position.set(60+dx,2.6,-16.3);c.castShadow=true;scene.add(c);});
+ return {x:BX,z:0,vdoor,vdoorY0:2.4,vbox,cash,opening:false,ot:0};
+})();
 [[-415,0],[415,0]].forEach(p=>{const m=new THREE.Mesh(new THREE.BoxGeometry(8,3.2,44),new THREE.MeshLambertMaterial({color:0x8a7f72}));m.position.set(p[0],1.6,p[1]);scene.add(m);addBox(p[0],0,p[1],8,3.2,44);});
 
 (function sign(){
@@ -317,7 +421,7 @@ const PAL=[0xb33a3a,0x2f4a8a,0xdcdcdc,0x222222,0x9aa0a6,0x2a7a52,0xc9962a,0x6a3d
  ROADS.forEach(z=>{for(let x=-420;x<=420;x+=45){const p=new THREE.Mesh(pole,mp);p.position.set(x,4,z+7.5);scene.add(p);const h=new THREE.Mesh(new THREE.SphereGeometry(0.4,6,4),mh);h.position.set(x,8.1,z+7.5);scene.add(h);}});
 })();
 (function playground(){
- const add=(g,c,x,y,z,sx,sy,sz)=>{const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:c}));m.position.set(x,y,z);m.scale.set(sx,sy,sz);scene.add(m);return m;};
+ const add=(g,c,x,y,z,sx,sy,sz)=>{const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:c}));m.position.set(x,y,z+144);m.scale.set(sx,sy,sz);scene.add(m);return m;};
  const B=new THREE.BoxGeometry(1,1,1);
  add(B,0xd8c58c,52,0.15,6,8,0.3,8);
  add(B,0xd94f4f,66,2,-4,0.3,4,0.3);add(B,0xd94f4f,70,2,-4,0.3,4,0.3);add(B,0x4a6fd9,68,3.9,-4,5,0.25,0.25);
@@ -522,6 +626,7 @@ function mpConnect(){
   ws.addEventListener('open',()=>{MP.connected=true;mpStatus('Online');ws.send(JSON.stringify({type:'join',name:mpName(),room:MP.room}));if(isCreator&&MP.pass)ws.send(JSON.stringify({type:'auth',name:curName,pass:MP.pass}));toast('Připojeno k multiplayeru',1500);});
   ws.addEventListener('message',ev=>{
    let m;try{m=JSON.parse(ev.data)}catch(_){return}
+   if(m.type==='chat'){chatAdd(m);return;}
    if(m.type==='grant'){applyGrant(m);return;}
    if(m.type==='admin'&&m.ok){MP.admin=true;$('bpl').hidden=false;toast('Admin práva na hráče aktivní',2000);return;}
    if(m.type==='snapshot'&&Array.isArray(m.players)){
@@ -542,6 +647,41 @@ function mpConnect(){
   ws.addEventListener('error',()=>{MP.connected=false;mpStatus('Server nedostupný');});
  }catch(_){mpStatus('Nelze se připojit');}
 }
+
+/* ===== Chat ===== */
+const QUICK=['Ahoj! 👋','Pojďte sem!','Pomoc!','Půjdeme na misi?','Pozor!','Díky!','Dobrá hra 👍','Haha 😂'];
+function chatAdd(m){
+ const box=$('chatlog');if(!box||typeof m.text!=='string')return;
+ const d=document.createElement('div'),b=document.createElement('b');
+ if(m.role==='creator')b.className='cr';
+ b.textContent=String(m.name||'Hráč').slice(0,20)+': ';
+ d.appendChild(b);d.appendChild(document.createTextNode(m.text.slice(0,100)));
+ box.appendChild(d);
+ while(box.children.length>6)box.removeChild(box.firstChild);
+ setTimeout(()=>{d.classList.add('old');setTimeout(()=>d.remove(),700);},12000);
+}
+function chatSend(text){
+ text=String(text||'').trim().slice(0,100);if(!text)return;
+ if(!(MP.ws&&MP.ws.readyState===1)){toast('Chat funguje jen online',1500);return;}
+ MP.ws.send(JSON.stringify({type:'chat',text}));
+}
+function chatClose(){const c=$('chat');if(c.hidden)return;c.hidden=true;$('ci').blur();paused=false;}
+function chatOpen(){
+ if(!$('login').hidden||!$('panel').hidden||!$('hk').hidden||!$('adm').hidden||!$('st').hidden||($('mapp')&&!$('mapp').hidden))return;
+ Object.values(holds).forEach(x=>x.clear());
+ $('chat').hidden=false;paused=true;
+}
+$('cq').innerHTML='';
+QUICK.forEach(t=>{const b=document.createElement('button');b.textContent=t;b.onclick=()=>{chatSend(t);chatClose();};$('cq').appendChild(b);});
+function chatSubmit(){const i=$('ci');chatSend(i.value);i.value='';chatClose();}
+$('bchat').addEventListener('click',()=>{$('chat').hidden?chatOpen():chatClose();});
+$('csend').addEventListener('click',chatSubmit);
+$('cx').addEventListener('click',chatClose);
+$('ci').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();chatSubmit();}else if(e.key==='Escape')chatClose();});
+window.addEventListener('keydown',e=>{
+ if(e.target&&e.target.tagName==='INPUT')return;
+ if(e.code==='KeyC'||e.code==='Enter'){if(!$('login').hidden||rebind)return;e.preventDefault();chatOpen();setTimeout(()=>{if(!$('chat').hidden)$('ci').focus();},0);}
+});
 function mpTick(now,dt){
  if(MP.connected&&MP.ws&&MP.ws.readyState===1&&!paused&&now-MP.lastSend>80){
   MP.lastSend=now;
@@ -592,7 +732,8 @@ const MISSIONS=[
  {title:'Rychlá pizza',desc:'Vyzvedni pizzu na střeše pizzerie a doruč ji na věž do 70 sekund.',kind:'ordered',time:70,timeFrom:1,types:['pizza','deliver'],r:4,t:[new V3(-60,7.5,-24),R(60,72,0,0,1.5)]},
  {title:'Časovka nad sídlištěm',desc:'Proleť 8 obručemi za 80 sekund.',kind:'ordered',time:80,timeFrom:0,type:'ring',r:5.5,t:[new V3(30,16,-36),new V3(60,24,-20),new V3(60,30,10),new V3(60,22,36),new V3(0,18,36),new V3(-60,28,20),new V3(-60,20,-12),new V3(-30,16,-36)]},
  {title:'Střešní sprint',desc:'Dotkni se 5 střech panelákových pásů.',kind:'any',type:'roof',r:4,t:[R(-120,-72),R(0,0),R(120,0),R(-120,72),R(0,72)]},
- {title:'Pouliční závod',desc:'Nastup do auta (tlačítko Auto) a projeď 7 checkpointů po silnicích za 65 sekund.',kind:'ordered',time:65,timeFrom:0,type:'check',r:8,t:[new V3(150,1,-36),new V3(300,1,-110),new V3(150,1,-182),new V3(-150,1,-182),new V3(-300,1,-110),new V3(-150,1,-36),new V3(0,1,-36)]}
+ {title:'Pouliční závod',desc:'Nastup do auta (tlačítko Auto) a projeď 7 checkpointů po silnicích za 65 sekund.',kind:'ordered',time:65,timeFrom:0,type:'check',r:8,t:[new V3(150,1,-36),new V3(300,1,-110),new V3(150,1,-182),new V3(-150,1,-182),new V3(-300,1,-110),new V3(-150,1,-36),new V3(0,1,-36)]},
+ {title:'Vykradení banky',desc:'Vejdi do banky uprostřed města, vytáhni zbraň (B), drž MÍŘ a namiř na bankéře – odvede tě do trezoru. Hlídá to ozbrojená ochranka! Odměna $100 000.',kind:'bank',time:200,reward:100000,types:['bankdoor','clerk','vault','cash','escape'],r:3,t:[new V3(60,1.2,-18.5),new V3(60,1.6,-2),new V3(60,1,3.5),new V3(60,1.2,11),new V3(60,1,-110)]}
 ];
 MISSIONS.forEach(m=>{m.targets=m.t.map((p,i)=>({p:p,type:m.types?m.types[i]:m.type,r:m.r,got:false,obj:null}));});
 const markerGroup=new THREE.Group();scene.add(markerGroup);
@@ -600,6 +741,7 @@ const BM=(c,o)=>new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:o,
 function makeMarker(t){
  const g=new THREE.Group();g.position.copy(t.p);
  let col=0x35e0ff;
+ const BKC={bankdoor:0xffd166,clerk:0xff4d4d,vault:0x35e0ff,cash:0x4ee08a,escape:0xff9f1c};if(BKC[t.type])col=BKC[t.type];
  if(t.type==='parcel'){col=0xffd166;const b=new THREE.Mesh(new THREE.BoxGeometry(1.2,1,1.2),new THREE.MeshLambertMaterial({color:0xb5834a}));g.add(b);const r1=new THREE.Mesh(new THREE.BoxGeometry(1.25,1.05,0.25),new THREE.MeshLambertMaterial({color:0xffd166}));g.add(r1);}
  else if(t.type==='ring'){col=0xff4fd8;const r=new THREE.Mesh(new THREE.TorusGeometry(5,0.45,8,28),new THREE.MeshBasicMaterial({color:col}));g.add(r);}
  else if(t.type==='cat'){const o=new THREE.MeshLambertMaterial({color:0xe08a2e});const b=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.45,0.9),o);const hd=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.38,0.38),o);hd.position.set(0,0.2,0.55);const e1=new THREE.Mesh(new THREE.ConeGeometry(0.09,0.2,4),o);e1.position.set(-0.12,0.5,0.55);const e2=e1.clone();e2.position.x=0.12;g.add(b,hd,e1,e2);g.scale.setScalar(1.8);}
@@ -628,23 +770,26 @@ function refreshMarkers(){
 function startMission(i){
  mi=i;stage=0;timerOn=false;timeLeft=0;
  MISSIONS[i].targets.forEach(t=>t.got=false);
+ if(MISSIONS[i].kind==='bank')resetBank();
  refreshMarkers();toast('Mise: '+MISSIONS[i].title+'\n'+MISSIONS[i].desc,3800);
 }
 function completeMission(){
  done[mi]=true;addMoney(300);MISSIONS[mi].targets.forEach(t=>t.obj.visible=false);
- const next=done.indexOf(false);
- if(next<0){toast('Všechny mise splněny! Teď si můžeš volně létat nad sídlištěm.',5000);mi=-1;}
+ const next=done.findIndex((d,k)=>!d&&MISSIONS[k].kind!=='bank');
+ if(next<0){toast('Všechny mise splněny! Teď si můžeš volně létat nad sídlištěm – nebo vykrást banku (menu Mise).',5000);mi=-1;}
  else{toast('Mise splněna: '+MISSIONS[mi].title+' ✓ +$300\nDalší mise za chvíli…',3000);advT=3;mi=-2;pendingNext=next;}
 }
 let pendingNext=0;
 function failMission(){toast('Čas vypršel – zkus to znovu!',2200);startMissionSilent(mi);}
 function startMissionSilent(i){mi=i;stage=0;timerOn=false;MISSIONS[i].targets.forEach(t=>t.got=false);refreshMarkers();}
-function respawn(){if(drv)exitCar(true);P.pos.copy(START);P.vel.set(0,0,0);P.yaw=0;P.camYaw=0;P.rope=null;P.grounded=true;}
+function respawn(){if(drv)exitCar(true);P.pos.copy(homeSpawn());P.vel.set(0,0,0);P.yaw=0;P.camYaw=0;P.rope=null;P.grounded=true;}
 
 function missionUpdate(dt){
+ bankTick(dt);
  if(advT>0){advT-=dt;if(advT<=0)startMission(pendingNext);return;}
  if(mi<0)return;
  const m=MISSIONS[mi];
+ if(m.kind==='bank')return;
  if(m.kind==='any'){
   m.targets.forEach(t=>{if(!t.got&&P.pos.distanceTo(t.p)<t.r+(CH.pickup?30:0)){t.got=true;t.obj.visible=false;addMoney(25);toast(m.type==='roof'?'Střecha ✓ +$25':'Sebráno ✓ +$25',1200);}});
   if(m.targets.every(t=>t.got))completeMission();
@@ -664,7 +809,7 @@ function missionUpdate(dt){
 }
 function currentTarget(){
  if(mi<0)return null;const m=MISSIONS[mi];
- if(m.kind==='ordered')return m.targets[stage]||null;
+ if(m.kind==='ordered'||m.kind==='bank')return m.targets[stage]||null;
  let best=null,bd=1e9;m.targets.forEach(t=>{if(!t.got){const d=P.pos.distanceTo(t.p);if(d<bd){bd=d;best=t;}}});return best;
 }
 
@@ -726,20 +871,21 @@ function respawnNpc(n){
  n.g.position.set((Math.random()-0.5)*800,0,r+(Math.random()<0.5?-5.8:5.8));
 }
 const HAIR=[0x1b1b1b,0x4a2f1a,0x8a5a2b,0xd8b45a,0xb33a2a,0xdddddd],TOP=[0xc0392b,0x2980b9,0x27ae60,0xf1c40f,0x8e44ad,0xecf0f1,0x34495e,0xe67e22,0x16a085],BOT=[0x2b3a55,0x3d3d3d,0x5a4632,0x1f2d3d,0x6b6b6b,0x7a8aa0],PK=a=>a[Math.floor(Math.random()*a.length)];
-function mkNpc(){
- const g=new THREE.Group(),M=c=>new THREE.MeshLambertMaterial({color:c}),fem=Math.random()<0.5,top=M(PK(TOP)),bot=M(PK(BOT)),sk=M(PK(skin)),hr=M(PK(HAIR)),shoeM=M(PK([0x222222,0xeeeeee,0x6b3b1e])),eyeM=new THREE.MeshBasicMaterial({color:0x111111});
+function mkNpc(opt){
+ const g=new THREE.Group(),M=c=>new THREE.MeshLambertMaterial({color:c}),fem=opt?!!opt.fem:Math.random()<0.5,top=M(opt&&opt.top!==undefined?opt.top:PK(TOP)),bot=M(opt&&opt.bot!==undefined?opt.bot:PK(BOT)),sk=M(PK(skin)),hr=M(PK(HAIR)),shoeM=M(PK([0x222222,0xeeeeee,0x6b3b1e])),eyeM=new THREE.MeshBasicMaterial({color:0x111111});
  const add=(geo,m,x,y,z,p)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);(p||g).add(o);o.castShadow=true;return o;};
  const tr=add(NG.t,top,0,1.12,0);tr.scale.x=fem?0.86:1.05;add(NG.bt,bot,0,0.83,0);add(NG.nk,sk,0,1.5,0);
  add(NG.h,sk,0,1.64,0);add(NG.eye,eyeM,-0.07,1.63,0.17);add(NG.eye,eyeM,0.07,1.63,0.17);
  const hh=add(NG.hair,hr,0,1.665,-0.02);if(fem)add(NG.lh,hr,0,1.5,-0.1);
  if(!fem&&Math.random()<0.2)hh.visible=false;
  if(fem&&Math.random()<0.5)add(NG.sk,top,0,0.78,0);
- if(Math.random()<0.25)add(NG.pk,M(PK(TOP)),0,1.18,-0.2);
- if(Math.random()<0.15){add(NG.cap,M(PK(TOP)),0,1.8,0);add(NG.br,M(0x222222),0,1.78,0.2);hh.visible=false;}
+ if(!opt&&Math.random()<0.25)add(NG.pk,M(PK(TOP)),0,1.18,-0.2);
+ if(!opt&&Math.random()<0.15){add(NG.cap,M(PK(TOP)),0,1.8,0);add(NG.br,M(0x222222),0,1.78,0.2);hh.visible=false;}
  const mkL=x=>{const p=new THREE.Group();p.position.set(x,0.8,0);g.add(p);add(NG.l,bot,0,-0.4,0,p);add(NG.s,shoeM,0,-0.8,0.05,p);return p;};
  const mkA=x=>{const p=new THREE.Group();p.position.set(x,1.4,0);g.add(p);add(NG.sl,top,0,0,0,p);add(NG.a,top,0,-0.3,0,p);add(NG.hd,sk,0,-0.62,0,p);return p;};
  g.scale.set(0.95+Math.random()*0.1,1,0.95+Math.random()*0.1);
  const n={g,lL:mkL(-0.12),lR:mkL(0.12),aL:mkA(-0.33),aR:mkA(0.33),hp:100,alive:true,t:0,pool:null,dir:1,sp:1.2+Math.random()*1.3};
+ if(opt){scene.add(g);return n;}
  respawnNpc(n);scene.add(g);NPCS.push(n);
 }
 for(let i=0;i<60;i++)mkNpc();
@@ -762,7 +908,7 @@ function pickTarget(){camera.updateMatrixWorld();let best=null,bs=1e9;
 function hurt(n,d,head,pt){
  if(!n.alive)return;n.hp-=d*(head?2:1);blood(pt,n.hp<=0?45:12,n.hp<=0?7:4);
  if(n.hp<=0){n.alive=false;n.t=0;const m=new THREE.Mesh(poolG,poolMat);m.rotation.x=-Math.PI/2;m.position.set(n.g.position.x,0.07,n.g.position.z);scene.add(m);n.pool=m;
-  const g=head?100:50;addMoney(g);toast((head?'Headshot':'Zásah')+' +$'+g,1000);}
+  const g=n.civ?0:(head?100:50)*(n.guard?3:1);if(g){addMoney(g);toast((head?'Headshot':'Zásah')+' +$'+g,1000);}}
 }
 function fire(){
  const w=WS[equipped];if(!w||fireCd>0)return;fireCd=w.r/CH.rapid;
@@ -776,10 +922,10 @@ function fire(){
   const d=dir.clone();if(w.sp){d.x+=(Math.random()-0.5)*w.sp;d.y+=(Math.random()-0.5)*w.sp;d.z+=(Math.random()-0.5)*w.sp;d.normalize();}
   let ht=w.rg;for(const b of boxes){const t=rayBox(o,d,b,ht);if(t>0&&t<ht)ht=t;}
   let hit=null,head=false;
-  NPCS.forEach(q=>{if(!q.alive)return;const p=q.g.position,t1=raySph(o,d,new V3(p.x,p.y+1.62,p.z),0.25),t2=raySph(o,d,new V3(p.x,p.y+1.1,p.z),0.55);
+  NPCS.concat(BANKP).forEach(q=>{if(!q.alive)return;const p=q.g.position,t1=raySph(o,d,new V3(p.x,p.y+1.62,p.z),0.25),t2=raySph(o,d,new V3(p.x,p.y+1.1,p.z),0.55);
    if(t1>0&&t1<ht){ht=t1;hit=q;head=true;}if(t2>0&&t2<ht){ht=t2;hit=q;head=false;}});
   const e=o.clone().addScaledVector(d,ht);if(w.rg>10)tracer(mz,e);
-  if(hit)hurt(hit,w.d,head,e);
+  if(hit){hurt(hit,w.d,head,e);if(hit.bk)bankHurt(hit);}
  }
 }
 const flash=new THREE.Mesh(new THREE.SphereGeometry(0.16,8,6),new THREE.MeshBasicMaterial({color:0xffd060}));flash.visible=false;scene.add(flash);let flashT=0;
@@ -953,7 +1099,8 @@ function hud(){
   elP.textContent=cnt+' / '+total;
   elTime.textContent=(m.time&&timerOn)?'⏱ '+Math.max(0,Math.ceil(timeLeft))+' s':'';
  }else{elT.textContent=mi===-2?'Mise splněna ✓':'Volné létání';elP.textContent='';elTime.textContent='';}
- const t=currentTarget();
+ if(WP.p&&Math.hypot(WP.p.x-P.pos.x,WP.p.z-P.pos.z)<14){WP.p=null;toast('Cíl navigace dosažen ✓',1600);}
+ const t=WP.p?{p:WP.p}:currentTarget();
  if(t){const dx=t.p.x-P.pos.x,dz=t.p.z-P.pos.z;const rel=Math.atan2(dx,dz)-(P.camYaw+camLook.ox);
   elA.style.transform='rotate('+(-rel)+'rad)';elD.textContent=Math.round(P.pos.distanceTo(t.p))+' m';elA.parentNode.style.visibility='visible';}
  else elA.parentNode.style.visibility='hidden';
@@ -963,7 +1110,7 @@ function hud(){
 const panel=$('panel');
 function renderMissions(){
  panel.innerHTML='<h2>Mise</h2>'+MISSIONS.map((m,i)=>'<button class="mc'+(done[i]?' done':'')+'" data-i="'+i+'"><b>'+(done[i]?'✓ ':'')+m.title+'</b><small>'+m.desc+'</small></button>').join('')+
- '<div class="row"><label><input type="checkbox" id="asst"'+(assist?' checked':'')+'> Asistent navádění</label><button id="brs">Návrat na start</button></div>'+
+ '<div class="row"><label><input type="checkbox" id="asst"'+(assist?' checked':'')+'> Asistent navádění</label><button id="brs">Respawn (domov / start)</button></div>'+
  '<div class="row"><button id="bcl">Zavřít</button></div>'+
  '<p style="font-size:12px;opacity:.7">Ovládání: W/S chůze, A/D zatáčení (šipky nebo tlačítka). Drž LANO (mezerník) = skok a houpání, pusť = letíš dál. TRIK (F) ve vzduchu = salto, se zatáčením A/D = piruetá, S = salto vzad. Zbraně: B.</p>';
  panel.querySelectorAll('.mc').forEach(b=>b.onclick=()=>{panel.hidden=true;paused=false;startMission(+b.dataset.i);});
@@ -1110,12 +1257,251 @@ function carPhysics(dt){
    crash(Math.abs(car.sp));
   }
  }
- car.x=Math.max(-450,Math.min(450,car.x));car.z=Math.max(-250,Math.min(250,car.z));
+ car.x=Math.max(MB.x0,Math.min(MB.x1,car.x));car.z=Math.max(-MB.z,Math.min(MB.z,car.z));
  P.pos.set(car.x,0.92,car.z);P.yaw=car.yaw;P.vel.set(Math.sin(car.yaw)*car.sp,0,Math.cos(car.yaw)*car.sp);P.grounded=true;
  carG.position.set(car.x,0,car.z);carG.rotation.y=car.yaw;
 }
 $('bcar').addEventListener('pointerdown',e=>{e.preventDefault();toggleCar();});
 window.addEventListener('keydown',e=>{if(e.code==='KeyG')toggleCar();if(e.code==='KeyV')togglePanel('c');});
+
+
+// ===== BANKA: lidé, ochranka, trezor, mise =====
+const BK={alert:false,aimT:0,sel:null,copT:-1,lp:null,hint:0},BI=MISSIONS.findIndex(m=>m.kind==='bank'),BANKP=[],CLERKS=[],GUARDS=[];
+function mkBankPerson(x,z,rot,guard){
+ const n=guard?mkNpc({fem:false,top:0x15171c,bot:0x15171c}):mkNpc({fem:Math.random()<0.5,top:PK([0x2a4d8f,0x2f6f73,0x7a2e3a,0xecf0f1]),bot:0x2b2f3a});
+ n.g.position.set(x,0,z);n.g.rotation.y=rot;
+ n.bk=true;n.guard=guard;n.civ=!guard;n.hp=guard?120:60;n.hx=x;n.hz=z;n.hr=rot;n.sus=0;n.cd=1;n.hands=false;
+ if(guard){
+  const dk=new THREE.MeshLambertMaterial({color:0x0b0b0e});
+  const gun=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.12,0.45),dk);gun.position.set(0,-0.62,0.22);n.aR.add(gun);
+  const cap=new THREE.Mesh(NG.cap,dk);cap.position.set(0,1.8,0);n.g.add(cap);
+  const br=new THREE.Mesh(NG.br,dk);br.position.set(0,1.78,0.2);n.g.add(br);
+  n.dmg=6;n.sp2=3.3;
+ }
+ BANKP.push(n);(guard?GUARDS:CLERKS).push(n);
+ return n;
+}
+[[50,-2.2],[60,-2.2],[70,-2.2]].forEach(c=>mkBankPerson(c[0],c[1],Math.PI,false));
+[[46,-9,Math.PI*0.75],[74,-9,-Math.PI*0.75],[47,10,Math.PI*0.9],[72,11,-Math.PI*0.9]].forEach(c=>mkBankPerson(c[0],0,0,true).g.position.z=c[1]);
+GUARDS.forEach((q,i)=>{const a=[[46,-9,Math.PI*0.75],[74,-9,-Math.PI*0.75],[47,10,Math.PI*0.9],[72,11,-Math.PI*0.9]][i];q.hx=a[0];q.hz=a[1];q.hr=a[2];q.g.position.set(a[0],0,a[1]);q.g.rotation.y=a[2];});
+function poseBankPerson(q){
+ q.lL.rotation.x=q.lR.rotation.x=0;
+ if(q.guard){q.aR.rotation.x=-1.45;q.aL.rotation.x=-1.3;}
+ else if(q.hands){q.aL.rotation.x=q.aR.rotation.x=-2.9;}
+ else q.aL.rotation.x=q.aR.rotation.x=0;
+}
+BANKP.forEach(poseBankPerson);
+function resetBank(){
+ BK.alert=false;BK.aimT=0;BK.sel=null;BK.copT=-1;BK.lp=null;BK.hint=0;
+ BANKP.forEach(q=>{
+  if(q.pool){scene.remove(q.pool);q.pool=null;}
+  q.hp=q.guard?120:60;q.alive=true;q.t=0;q.sus=0;q.cd=1;q.hands=false;q.go=false;
+  q.g.position.set(q.hx,0,q.hz);q.g.rotation.set(0,q.hr,0);poseBankPerson(q);
+ });
+ BANK.opening=false;BANK.ot=0;BANK.vdoor.position.y=BANK.vdoorY0;
+ if(!boxes.includes(BANK.vbox))boxes.push(BANK.vbox);
+ BANK.cash.visible=true;
+ if(WANT.on)setWanted(false);
+}
+function failBank(msg){toast(msg,3400);timerOn=false;resetBank();startMissionSilent(BI);}
+function completeBank(){
+ const m=MISSIONS[BI];done[BI]=true;timerOn=false;addMoney(m.reward);
+ m.targets.forEach(t=>t.obj.visible=false);
+ toast('Banka vykradena! 💰 +$'+m.reward+'\nMůžeš ji vykrást znovu z menu Mise.',4500);mi=-1;
+}
+function bankAlarm(msg){
+ if(BK.alert)return;BK.alert=true;
+ if(BK.copT<0&&!WANT.on)BK.copT=18;
+ if(msg)toast(msg,2500);
+}
+function bankHurt(q){bankAlarm(q.guard?'Střelba! Ochranka tě zabije!':'Spustil se alarm!');}
+function npcMove(n,tx,tz,sp,dt){
+ const g=n.g.position,dx=tx-g.x,dz=tz-g.z,d=Math.hypot(dx,dz);if(d<0.25)return;
+ const st=Math.min(d,sp*dt);g.x+=dx/d*st;g.z+=dz/d*st;
+ const R=0.5;
+ for(const b of boxes){if(b.min.y>2||b.max.y<0.3)continue;
+  if(g.x>b.min.x-R&&g.x<b.max.x+R&&g.z>b.min.z-R&&g.z<b.max.z+R){
+   const pl=g.x+R-b.min.x,pr=b.max.x-(g.x-R),pb=g.z+R-b.min.z,pf=b.max.z-(g.z-R),m=Math.min(pl,pr,pb,pf);
+   if(m===pl)g.x=b.min.x-R;else if(m===pr)g.x=b.max.x+R;else if(m===pb)g.z=b.min.z-R;else g.z=b.max.z+R;
+  }}
+ n.t+=dt*sp*3.2;const s=Math.sin(n.t)*0.6;n.lL.rotation.x=s;n.lR.rotation.x=-s;
+}
+const inBank=(x,z)=>Math.abs(x-60)<19.5&&Math.abs(z)<14.5;
+function bankTick(dt){
+ // mrtvoly padají
+ for(const q of BANKP){if(!q.alive){q.t+=dt;if(q.t<0.4)q.g.rotation.x=-(q.t/0.4)*Math.PI/2;}}
+ // otevírání dveří trezoru
+ if(BANK.opening&&BANK.ot<1){BANK.ot=Math.min(1,BANK.ot+dt/1.4);BANK.vdoor.position.y=BANK.vdoorY0+BANK.ot*4.9;}
+ if(mi!==BI)return;
+ const m=MISSIONS[BI],px=P.pos.x,pz=P.pos.z;
+ // přerušení loupeže (smrt, respawn)
+ if(hpP<=0){const lost=Math.min(money,150);addMoney(-lost);hpP=100;respawn();failBank('Ochranka tě zabila!'+(lost?' (−$'+lost+')':''));return;}
+ if(BK.lp&&stage>=2&&Math.hypot(px-BK.lp.x,pz-BK.lp.z)>60){failBank('Loupež přerušena – zkus to znovu.');return;}
+ if(!BK.lp)BK.lp=new V3();BK.lp.set(px,P.pos.y,pz);
+ const w=WS[equipped],armed=!!(w&&w.rg>10);
+ // --- fáze 0: vejít do banky
+ if(stage===0){
+  if(Math.hypot(px-60,pz+18.5)<4&&P.pos.y<4){stage=1;refreshMarkers();toast('Jsi v bance! Vytáhni zbraň (B), drž MÍŘ a namiř na bankéře za pultem.',3800);}
+ }
+ // --- fáze 1: namířit na bankéře
+ else if(stage===1){
+  let tg=null;
+  if(armed&&aimOn){
+   camera.updateMatrixWorld();const d=new V3();camera.getWorldDirection(d);
+   for(const c of CLERKS){if(!c.alive)continue;const ch=new V3(c.g.position.x,1.2,c.g.position.z);
+    if(camera.position.distanceTo(ch)>40)continue;
+    if(raySph(camera.position,d,ch,0.9)>0&&los(camera.position,ch)){tg=c;break;}}
+  }
+  if(tg){BK.aimT+=dt;}else BK.aimT=Math.max(0,BK.aimT-dt*2);
+  if(BK.aimT>=1){
+   BK.sel=tg;stage=2;timerOn=true;timeLeft=m.time;BK.aimT=0;
+   CLERKS.forEach(c=>{if(c.alive){c.hands=true;poseBankPerson(c);}});
+   tg.go=true;bankAlarm();if(BK.copT<0&&!WANT.on)BK.copT=18;
+   refreshMarkers();toast('„Nestřílejte! Vezmu vás do trezoru!“\nOchranka je ve střehu – pozor!',3800);
+  }else if(!armed&&Math.hypot(px-60,pz)<20){BK.hint-=dt;if(BK.hint<=0){BK.hint=4;toast('Potřebuješ zbraň – otevři Zbraně (B) a vybav si ji. Pak drž MÍŘ na bankéře.',2800);}}
+ }
+ // --- fáze 2: bankéř vede k trezoru
+ else if(stage===2){
+  if(!BK.sel||!BK.sel.alive)BK.sel=CLERKS.find(c=>c.alive)||null;
+  if(!BK.sel){failBank('Všichni bankéři jsou mrtví – trezor nikdo neotevře.');return;}
+  BK.sel.go=true;
+  const c=BK.sel,gp=c.g.position,dx=60-gp.x,dz=4.2-gp.z;
+  if(Math.hypot(dx,dz)>0.6){npcMove(c,60,4.2,2.4,dt);c.g.rotation.y=Math.atan2(dx,dz);c.aL.rotation.x=c.aR.rotation.x=-2.9;}
+  else{
+   BANK.opening=true;BANK.ot=0;const bi=boxes.indexOf(BANK.vbox);if(bi>=0)boxes.splice(bi,1);
+   c.g.rotation.y=Math.atan2(px-gp.x,pz-gp.z);c.lL.rotation.x=c.lR.rotation.x=0;
+   stage=3;refreshMarkers();toast('Trezor je otevřený! Seber peníze!',3000);
+  }
+ }
+ // --- fáze 3: sebrat peníze
+ else if(stage===3){
+  if(Math.hypot(px-60,pz-11)<3.4&&P.pos.y<4){
+   stage=4;BANK.cash.visible=false;if(!WANT.on)setWanted(true);BK.copT=-1;
+   refreshMarkers();toast('Peníze v tašce! 💰 Uteč z města – policie je na cestě!',3800);
+  }
+ }
+ // --- fáze 4: útěk
+ else if(stage===4){
+  if(Math.hypot(px-60,pz+110)<12){completeBank();return;}
+ }
+ // časový limit od začátku loupeže
+ if(stage>=2&&timerOn){timeLeft-=dt;if(timeLeft<=0){failBank('Čas vypršel – banku obklíčili.');return;}}
+ // policie přijede se zpožděním po spuštění alarmu
+ if(BK.copT>0){BK.copT-=dt;if(BK.copT<=0){BK.copT=-1;setWanted(true);}}
+ // --- ochranka
+ const tp=new V3(px,P.pos.y,pz);
+ for(const q of GUARDS){
+  if(!q.alive)continue;
+  const gp=q.g.position,pdx=px-gp.x,pdz=pz-gp.z,pd=Math.hypot(pdx,pdz);
+  const eye=new V3(gp.x,1.5,gp.z),vis=pd<60&&los(eye,tp);
+  if(!BK.alert){
+   if(vis&&pd<16&&armed)q.sus+=dt;else q.sus=Math.max(0,q.sus-dt*0.5);
+   if(vis&&pd<25)q.g.rotation.y=Math.atan2(pdx,pdz);
+   if(q.sus>1.6)bankAlarm('Ochranka tě spatřila se zbraní!');
+   continue;
+  }
+  q.g.rotation.y=Math.atan2(pdx,pdz);
+  if(!(vis&&pd<10)&&Math.hypot(gp.x-60,gp.z)<60){
+   let gx=px,gz=pz;const gi=inBank(gp.x,gp.z),pi=inBank(px,pz);
+   if(gi&&!pi){gx=60;gz=gp.z>-12?-12:-17.5;}
+   else if(!gi&&pi){if(gp.z<-16.5&&Math.abs(gp.x-60)<4){gx=60;gz=-12;}else{gx=60;gz=-17.5;}}
+   npcMove(q,gx,gz,q.sp2,dt);q.g.rotation.y=Math.atan2(pdx,pdz);
+  }else{q.lL.rotation.x=q.lR.rotation.x=0;}
+  q.cd-=dt;
+  if(vis&&pd<55&&q.cd<=0){
+   q.cd=0.55+Math.random()*0.35;
+   const sy=Math.sin(q.g.rotation.y),cy=Math.cos(q.g.rotation.y),muz=new V3(gp.x+sy*0.6,1.35,gp.z+cy*0.6);
+   const hit=Math.random()<Math.max(0.12,0.5-pd*0.015);
+   const end=hit?tp.clone():tp.clone().add(new V3((Math.random()-0.5)*5,(Math.random()-0.5)*2,(Math.random()-0.5)*5));
+   tracer(muz,end);
+   if(hit){if(drv)car.hp-=q.dmg;else hpP-=q.dmg;hitCd=Math.max(hitCd,-0.1);blood(P.pos.clone(),5,3);}
+  }
+ }
+}
+
+
+// ===== MAPA, KOUPĚ DOMŮ, NAVIGACE =====
+const HOUSE_PRICE=250000,WP={p:null},fmtM=n=>String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,' ');
+let ownedH=[],homeId=null,mapSel=null,mapMsg='';
+try{const s=JSON.parse(localStorage.getItem('rr3d_houses')||'null');if(s&&Array.isArray(s.o)){ownedH=s.o.filter(id=>HOUSES.some(x=>x.id===id));homeId=ownedH.includes(s.h)?s.h:(ownedH[0]||null);}}catch(_){}
+function saveH(){try{localStorage.setItem('rr3d_houses',JSON.stringify({o:ownedH,h:homeId}));}catch(_){}}
+HOUSES.forEach(x=>x.setOwned(ownedH.includes(x.id)));
+function homeSpawn(){const x=HOUSES.find(q=>q.id===homeId);return x?x.spawn:START;}
+function teleportTo(v){if(drv)exitCar(true);P.pos.set(v.x,0.92,v.z);P.vel.set(0,0,0);P.yaw=0;P.camYaw=0;P.rope=null;P.grounded=true;}
+const MAPP=document.createElement('div');MAPP.id='mapp';MAPP.hidden=true;$('view').appendChild(MAPP);
+function mapPois(){
+ const a=[
+  {k:'bank',icon:'🏦',name:'Banka',x:60,z:0},
+  {k:'shop',icon:'🔧',name:'Custom Auto Shop',x:SHOP.x,z:SHOP.z},
+  {k:'pizza',icon:'🍕',name:'Pizzerie',x:-60,z:-24},
+  {k:'start',icon:'🏁',name:'Start',x:0,z:-36},
+  {k:'car',icon:'🚗',name:'Tvoje auto',x:home.x,z:home.z}
+ ];
+ HOUSES.forEach(x=>a.push({k:'house',house:x,icon:ownedH.includes(x.id)?'🏡':'🏠',name:x.name,x:x.x,z:x.z}));
+ return a;
+}
+function closeMap(){if(MAPP.hidden)return;MAPP.hidden=true;paused=false;}
+function openMap(){
+ if(!$('login').hidden||!$('chat').hidden||!$('panel').hidden||!$('hk').hidden||!$('adm').hidden||!$('st').hidden)return;
+ Object.values(holds).forEach(x=>x.clear());mapSel=null;mapMsg='';renderMap();MAPP.hidden=false;paused=true;
+}
+function buyHouse(x){
+ if(ownedH.includes(x.id))return;
+ if(money<HOUSE_PRICE){mapMsg='Nemáš dost peněz – chybí $'+fmtM(HOUSE_PRICE-money)+'.';return;}
+ money-=HOUSE_PRICE;ownedH.push(x.id);homeId=x.id;saveH();save();x.setOwned(true);
+ mapMsg='Gratulace! Koupil jsi dům „'+x.name+'“. Nastaven jako tvůj respawn.';
+}
+function renderMap(){
+ const W=920,H=667,X=x=>(x-MB.x0)/(MB.x1-MB.x0),Y=z=>(z+MB.z)/(2*MB.z);
+ MAPP.innerHTML='<div class="hh"><b>Mapa</b><span style="color:#7dff9b">$ '+fmtM(money)+'</span><button id="mpx">✕</button></div><div id="mpwrap"><canvas id="mpc" width="'+W+'" height="'+H+'"></canvas></div><div id="mpinfo"></div><div id="mpleg">🏦 banka · 🏠 domy na prodej ($'+fmtM(HOUSE_PRICE)+') · 🔧 auto shop · 🍕 pizzerie · 🚗 tvoje auto · ▲ ty</div>';
+ const g=$('mpc').getContext('2d');
+ g.fillStyle='#35553a';g.fillRect(0,0,W,H);
+ MB.zones.forEach(q=>{g.fillStyle=q[4];g.fillRect(X(q[0])*W,Y(q[2])*H,(X(q[1])-X(q[0]))*W,(Y(q[3])-Y(q[2]))*H);});
+ g.fillStyle='#3b8fc4';g.beginPath();g.arc(X(300)*W,Y(640)*H,170/(MB.x1-MB.x0)*W,0,7);g.fill();
+ g.fillStyle='#5a5f66';g.fillRect(X(-450)*W,Y(-250)*H,(X(450)-X(-450))*W,(Y(250)-Y(-250))*H);
+ g.fillStyle='#c9c9c0';
+ [-36,36].forEach(z=>g.fillRect(0,Y(z)*H-1,W,2));
+ ROADS.forEach(z=>g.fillRect(X(-450)*W,Y(z)*H-1,(X(450)-X(-450))*W,2));
+ [-300,-172,172,300].forEach(x=>g.fillRect(X(x)*W-1,Y(-250)*H,2,(Y(250)-Y(-250))*H));
+ g.fillRect(X(-450)*W,Y(330)*H-1,(X(900)-X(-450))*W,2);
+ const wrap=$('mpwrap'),pois=mapPois();
+ pois.forEach(q=>{const b=document.createElement('button');b.className='mpi'+(mapSel&&mapSel.k===q.k&&mapSel.name===q.name?' sel':'');b.textContent=q.icon;b.style.left=(X(q.x)*100)+'%';b.style.top=(Y(q.z)*100)+'%';b.title=q.name;
+  b.onclick=()=>{mapSel=q;mapMsg='';renderMap();};wrap.appendChild(b);});
+ const me=document.createElement('div');me.id='mpme';me.textContent='▲';me.style.left=(X(P.pos.x)*100)+'%';me.style.top=(Y(P.pos.z)*100)+'%';me.style.transform='translate(-50%,-50%) rotate('+(Math.PI-P.yaw)+'rad)';wrap.appendChild(me);
+ // detail
+ const info=$('mpinfo');let html='',btns=[];
+ if(!mapSel){html='<p>Klepni na ikonu na mapě – zobrazí se detail, navigace nebo koupě domu.</p>';}
+ else{
+  const q=mapSel;html='<b>'+q.icon+' '+q.name+'</b>';
+  const dist=Math.round(Math.hypot(q.x-P.pos.x,q.z-P.pos.z));
+  if(q.k==='bank'){html+='<p>Vykraď banku a získej $100 000. Potřebuješ zbraň – ochranka střílí zpátky!</p>';btns.push(['Spustit misi',()=>{closeMap();startMission(BI);}]);}
+  else if(q.k==='house'){
+   const x=q.house,own=ownedH.includes(x.id);
+   if(own){html+='<p>✓ Tvůj dům.'+(homeId===x.id?' Tady se objevíš po smrti nebo respawnu.':'')+'</p>';
+    btns.push(['Teleport domů',()=>{closeMap();teleportTo(x.spawn);toast('Doma 🏡',1400);}]);
+    if(homeId!==x.id)btns.push(['Respawn zde',()=>{homeId=x.id;saveH();mapMsg='Respawn nastaven na tento dům.';renderMap();}]);}
+   else{html+='<p>Dům na prodej: $'+fmtM(HOUSE_PRICE)+'. Po koupi se tu budeš respawnovat a můžeš se sem teleportovat.</p>';
+    btns.push(['Koupit za $'+fmtM(HOUSE_PRICE),()=>{buyHouse(x);renderMap();}]);}
+  }
+  else if(q.k==='car')html+='<p>Tvoje červené auto.</p>';
+  else if(q.k==='shop')html+='<p>Tuning aut: pancíř, motor, spoilery, barva.</p>';
+  else if(q.k==='pizza')html+='<p>Pizzerie – cíl mise Rychlá pizza.</p>';
+  else html+='<p>Výchozí bod hry.</p>';
+  html+='<p style="font-size:12px;opacity:.7">Vzdálenost: '+dist+' m</p>';
+  btns.push(['Navigovat',()=>{WP.p=new V3(q.x,1,q.z);closeMap();toast('Navigace: '+q.name,1800);}]);
+ }
+ if(WP.p)btns.push(['Zrušit navigaci',()=>{WP.p=null;mapMsg='Navigace zrušena.';renderMap();}]);
+ if(mapMsg)html+='<p class="warn">'+mapMsg+'</p>';
+ info.innerHTML=html+'<div class="row" id="mpb"></div>';
+ btns.forEach(bt=>{const b=document.createElement('button');b.textContent=bt[0];b.onclick=bt[1];$('mpb').appendChild(b);});
+ $('mpx').onclick=closeMap;
+}
+$('bmap').addEventListener('click',()=>{MAPP.hidden?openMap():closeMap();});
+window.addEventListener('keydown',e=>{
+ if(e.target&&e.target.tagName==='INPUT')return;
+ if(!MAPP.hidden){if(e.code==='Escape'||e.code==='KeyN')closeMap();e.stopImmediatePropagation();e.preventDefault();return;}
+ if(e.code==='KeyN'&&$('login').hidden&&!rebind){e.preventDefault();e.stopImmediatePropagation();openMap();}
+},true);
 
 startMission(0);
 camPos.set(0,6,-48);look.set(0,2,-30);
@@ -1169,7 +1555,7 @@ function enter(creator,name,helper){
  isCreator=creator;isHelper=!!helper;curName=name;setSkin(creator,helper);Object.assign(CH,CH0);
  $('bhk').hidden=!(creator||helper);
  try{localStorage.setItem('rr3d_name',name);}catch(_){}
- loginEl.hidden=true;paused=false;lp.value='';mpConnect();
+ loginEl.hidden=true;paused=false;lp.value='';if(homeId)respawn();mpConnect();
  toast(creator?'Přihlášen: '+name+' 👑 (Hack menu odemčeno)':'Ahoj, '+(name||'hráči')+'!');
 }
 function logout(){MP.pass='';MP.admin=false;$('bpl').hidden=true;if(MP.ws)MP.ws.close();isCreator=false;isHelper=false;Object.assign(CH,CH0);$('bhk').hidden=true;showLogin();}
