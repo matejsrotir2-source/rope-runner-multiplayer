@@ -123,7 +123,7 @@ body.wide #joy{pointer-events:auto;opacity:.85}
 <body>
 <div id="view"><canvas id="ov"></canvas>
  <div id="hudL"><div id="mt"></div><div id="mp"></div><div id="mpstatus" style="font-size:11px;color:#7dff9b">Offline</div><div id="mtime"></div><div id="mmoney"></div><div style="margin-top:4px;width:120px;height:8px;background:#0008;border-radius:4px;overflow:hidden"><div id="hpf" style="height:100%;width:100%;background:#e63946"></div></div><canvas id="mm" width="120" height="66" style="margin-top:5px;border-radius:6px;background:#0b1424cc;border:1px solid #fff3;display:block"></canvas></div>
- <div id="hudR"><button id="bmenu">Mise</button><button id="bgun">Zbraně</button><button id="bcar">Auto</button><button id="bspawn" aria-label="Spawn aut">🚘</button><button id="bfs" aria-label="Celá obrazovka">⛶</button><button id="bhk" hidden>Hack</button><button id="bpl" hidden>Hráči</button><button id="bmap">🗺 Mapa</button><button id="bchat" aria-label="Chat">💬</button><button id="bst" aria-label="Nastavení">⚙</button><div id="arrowbox"><div id="arrow">▲</div><div id="adist"></div></div><div id="spd"></div></div>
+ <div id="hudR"><button id="bmenu">Mise</button><button id="bgun">Zbraně</button><button id="bcar">Auto</button><button id="bspawn" hidden aria-label="Spawn aut">🚘</button><button id="bfs" aria-label="Celá obrazovka">⛶</button><button id="bhk" hidden>Hack</button><button id="bpl" hidden>Hráči</button><button id="bmap">🗺 Mapa</button><button id="bchat" aria-label="Chat">💬</button><button id="bst" aria-label="Nastavení">⚙</button><div id="arrowbox"><div id="arrow">▲</div><div id="adist"></div></div><div id="spd"></div></div>
  <div id="toast"></div><div id="chatlog"></div>
  <div id="chat" hidden><div class="cq" id="cq"></div><div class="cin"><input id="ci" maxlength="100" placeholder="Napiš zprávu…" autocomplete="off"><button id="csend">Poslat</button><button id="cx">✕</button></div></div>
  <div id="panel" hidden></div><div id="hk" hidden></div><div id="adm" hidden></div><div id="st" hidden></div>
@@ -1173,8 +1173,9 @@ function renderGuns(){
  $('bcl').onclick=()=>{panel.hidden=true;paused=false;};
 }
 function renderPanel(){
+ if(tab==='s'&&!(isCreator||isHelper))tab='m';
  if(tab==='m')renderMissions();else if(tab==='c')renderTune();else if(tab==='s')renderSpawn();else renderGuns();
- panel.insertAdjacentHTML('afterbegin','<div class="row"><button data-t="m">Mise</button><button data-t="g">Zbraně</button><button data-t="c">Tuning</button><button data-t="s">Auta</button><b style="margin-left:auto;align-self:center;color:#7dff9b">$ '+money+'</b></div>');
+ panel.insertAdjacentHTML('afterbegin','<div class="row"><button data-t="m">Mise</button><button data-t="g">Zbraně</button><button data-t="c">Tuning</button>'+((isCreator||isHelper)?'<button data-t="s">Auta</button>':'')+'<b style="margin-left:auto;align-self:center;color:#7dff9b">$ '+money+'</b></div>');
  panel.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;gmsg='';renderPanel();});
 }
 function togglePanel(t){
@@ -1341,7 +1342,9 @@ function makeM4(){
  [[-0.93,1.43],[0.93,1.43],[-0.93,-1.43],[0.93,-1.43]].forEach(w=>{add(W,GM.tire,w[0],0.43,w[1]);add(RG,rim,w[0],0.43,w[1]);bx(0.05,0.14,0.2,red,w[0]*0.84,0.52,w[1]+0.12);});
  g.userData.paint=paint;return g;
 }
+function removeM4(){const v=BMW.v;if(!v)return;if(drv&&car===v)exitCar(true);scene.remove(v.g);const i=VEH.indexOf(v);if(i>=0)VEH.splice(i,1);BMW.v=null;}
 function spawnM4(){
+ if(!(isCreator||isHelper)){toast('Spawn aut je jen pro Nazika a Matýska.',2200);return false;}
  const cur=BMW.v;if(cur&&drv&&car===cur){toast('Nejdřív vystup z BMW.',1800);return false;}
  const px=P.pos.x,pz=P.pos.z,yaw=P.yaw;let pos=null;
  for(const a of [0,0.9,-0.9,1.8,-1.8,3.14]){
@@ -1657,12 +1660,12 @@ function setSkin(owner,hp){
 function showLogin(){setSkin(false);Object.values(holds).forEach(x=>x.clear());$('st').hidden=true;rebind=null;curName='';$('panel').hidden=true;hk.hidden=true;paused=true;lp.value='';lerr.textContent='';loginEl.hidden=false;}
 function enter(creator,name,helper){
  isCreator=creator;isHelper=!!helper;curName=name;setSkin(creator,helper);Object.assign(CH,CH0);
- $('bhk').hidden=!(creator||helper);
+ $('bhk').hidden=!(creator||helper);$('bspawn').hidden=!(creator||helper);if(!(creator||helper))removeM4();
  try{localStorage.setItem('rr3d_name',name);}catch(_){}
  loginEl.hidden=true;paused=false;lp.value='';if(homeId)respawn();mpConnect();
  toast(creator?'Přihlášen: '+name+' 👑 (Hack menu odemčeno)':'Ahoj, '+(name||'hráči')+'!');
 }
-function logout(){MP.pass='';MP.admin=false;$('bpl').hidden=true;if(MP.ws)MP.ws.close();isCreator=false;isHelper=false;Object.assign(CH,CH0);$('bhk').hidden=true;showLogin();}
+function logout(){MP.pass='';MP.admin=false;$('bpl').hidden=true;if(MP.ws)MP.ws.close();isCreator=false;isHelper=false;Object.assign(CH,CH0);$('bhk').hidden=true;$('bspawn').hidden=true;removeM4();showLogin();}
 let fails=0,lockUntil=0;
 async function tryLogin(){
  const name=lu.value.trim(),now=Date.now();
