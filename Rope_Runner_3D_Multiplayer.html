@@ -707,10 +707,15 @@ function renderHack(){
 }
 function toggleHack(){if(!isCreator&&!isHelper){hk.hidden=true;return;}if(hk.hidden){Object.values(holds).forEach(x=>x.clear());$('panel').hidden=true;renderHack();hk.hidden=false;paused=true;}else{hk.hidden=true;paused=false;}}
 $('bhk').addEventListener('click',toggleHack);
-(function(){const c=renderer.domElement;let lx=0,ly=0,dr=false;
-c.addEventListener('pointerdown',e=>{dr=true;lx=e.clientX;ly=e.clientY;if(e.pointerType==='mouse'&&e.button===0)holds.fire.add('m');});
-c.addEventListener('pointermove',e=>{if(!dr)return;const dx=e.clientX-lx,dy=e.clientY-ly;lx=e.clientX;ly=e.clientY;if(aimOn){P.yaw-=dx*0.006;aim.pitch=Math.max(-1,Math.min(1,aim.pitch-dy*0.004));}});
-const up=()=>{dr=false;holds.fire.delete('m');};['pointerup','pointercancel','pointerleave'].forEach(n=>c.addEventListener(n,up));})();
+const camLook={ox:0,oy:0,idle:0};
+(function(){const c=renderer.domElement;let lx=0,ly=0,dr=false,pid=null;
+c.addEventListener('contextmenu',e=>e.preventDefault());
+c.addEventListener('pointerdown',e=>{if(dr)return;dr=true;pid=e.pointerId;lx=e.clientX;ly=e.clientY;try{c.setPointerCapture(e.pointerId)}catch(_){}if(e.pointerType==='mouse'&&e.button===0)holds.fire.add('m');});
+c.addEventListener('pointermove',e=>{if(!dr||e.pointerId!==pid)return;const dx=e.clientX-lx,dy=e.clientY-ly;lx=e.clientX;ly=e.clientY;
+ if(aimOn){P.yaw-=dx*0.006;aim.pitch=Math.max(-1,Math.min(1,aim.pitch-dy*0.004));}
+ else if(!paused){camLook.ox=Math.max(-Math.PI,Math.min(Math.PI,camLook.ox-dx*0.008));camLook.oy=Math.max(-0.35,Math.min(1.3,camLook.oy+dy*0.006));camLook.idle=0;}});
+const up=e=>{if(e&&e.pointerId!==pid)return;dr=false;pid=null;camLook.idle=0;holds.fire.delete('m');};['pointerup','pointercancel','lostpointercapture'].forEach(n=>c.addEventListener(n,up));
+window.__camDrag=()=>dr;})();
 const NG={t:new THREE.CylinderGeometry(0.24,0.19,0.65,14).scale(1,1,0.6),l:new THREE.CylinderGeometry(0.085,0.065,0.8,10),a:new THREE.CylinderGeometry(0.06,0.05,0.6,8),h:new THREE.SphereGeometry(0.2,16,12),s:new THREE.SphereGeometry(0.09,8,6).scale(1,0.7,1.7),hd:new THREE.SphereGeometry(0.06,8,6),hair:new THREE.SphereGeometry(0.215,16,10,0,Math.PI*2,0,Math.PI*0.5),lh:new THREE.CylinderGeometry(0.15,0.09,0.36,10),nk:new THREE.CylinderGeometry(0.06,0.07,0.12,8),sk:new THREE.CylinderGeometry(0.2,0.31,0.42,14),pk:new THREE.BoxGeometry(0.3,0.36,0.14),eye:new THREE.SphereGeometry(0.025,6,5),cap:new THREE.CylinderGeometry(0.22,0.22,0.08,14),br:new THREE.BoxGeometry(0.2,0.02,0.16),bt:new THREE.CylinderGeometry(0.245,0.2,0.07,14).scale(1,1,0.6),sl:new THREE.SphereGeometry(0.085,8,6)};
 const skin=[0xf1c6a0,0xd9a77c,0x8d5a3b],NPCS=[];
 const poolMat=new THREE.MeshBasicMaterial({color:0x6a0610,transparent:true,opacity:0.85,depthWrite:false}),poolG=new THREE.CircleGeometry(0.9,12);
@@ -918,8 +923,12 @@ function updateCamera(dt){
  aimOn=holds.aim.size>0&&!paused;P.camYaw+=angDiff(P.yaw,P.camYaw)*Math.min(1,dt*(aimOn?10:3));
  const hs=Math.hypot(P.vel.x,P.vel.z);
  camera.fov+=((aimOn?42:64+Math.min(30,hs*0.4))-camera.fov)*Math.min(1,dt*(aimOn?8:3));camera.updateProjectionMatrix();
- const dist=aimOn?6:12+Math.min(60,hs)*0.2,height=aimOn?2.6:4.5+Math.min(60,hs)*0.05+(P.rope?2:0);
- const cf=new V3(Math.sin(P.camYaw),0,Math.cos(P.camYaw));
+ if(aimOn||paused){camLook.ox*=Math.exp(-dt*6);camLook.oy*=Math.exp(-dt*6);}
+ else if(!window.__camDrag()){camLook.idle+=dt;if(camLook.idle>3){const k=Math.exp(-dt*2.5);camLook.ox*=k;camLook.oy*=k;}}
+ const dist0=aimOn?6:12+Math.min(60,hs)*0.2,height0=aimOn?2.6:4.5+Math.min(60,hs)*0.05+(P.rope?2:0);
+ const dist=dist0*Math.cos(camLook.oy),height=height0+Math.sin(camLook.oy)*dist0;
+ const cy=P.camYaw+camLook.ox;
+ const cf=new V3(Math.sin(cy),0,Math.cos(cy));
  const focus=P.pos.clone().addScaledVector(cf,aimOn?14:5).add(new V3(0,1.5+(aimOn?aim.pitch*14:0),0));
  const want=P.pos.clone().addScaledVector(cf,-dist).add(new V3(0,height,0));
  const dir=want.clone().sub(focus),dl=dir.length();dir.multiplyScalar(1/dl);
@@ -945,7 +954,7 @@ function hud(){
   elTime.textContent=(m.time&&timerOn)?'⏱ '+Math.max(0,Math.ceil(timeLeft))+' s':'';
  }else{elT.textContent=mi===-2?'Mise splněna ✓':'Volné létání';elP.textContent='';elTime.textContent='';}
  const t=currentTarget();
- if(t){const dx=t.p.x-P.pos.x,dz=t.p.z-P.pos.z;const rel=Math.atan2(dx,dz)-P.camYaw;
+ if(t){const dx=t.p.x-P.pos.x,dz=t.p.z-P.pos.z;const rel=Math.atan2(dx,dz)-(P.camYaw+camLook.ox);
   elA.style.transform='rotate('+(-rel)+'rad)';elD.textContent=Math.round(P.pos.distanceTo(t.p))+' m';elA.parentNode.style.visibility='visible';}
  else elA.parentNode.style.visibility='hidden';
  elS.textContent=Math.round(Math.hypot(P.vel.x,P.vel.z)*3.6)+' km/h'+(drv?' · 🛡 '+Math.ceil(car.hp)+'/'+maxHp():'');
