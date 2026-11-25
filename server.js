@@ -112,7 +112,7 @@ function broadcast() {
           x: src.x,
           y: src.y,
           z: src.z,
-          yaw: src.yaw, skin: other.skin || null, role: other.role || null, title: other.title || null, nodrive: !!other.noDrive
+          yaw: src.yaw, skin: other.skin || null, role: other.role || null, title: other.title || null, nodrive: !!other.noDrive, gtrok: !!(other.gtrOk || other.admin)
         };
         if (rideId) {
           entry.ride = rideId;
@@ -166,6 +166,7 @@ wss.on('connection', ws => {
       p.room = String(m.room || 'sidliste').slice(0, 32);
       p.title = TITLES[titleKey(p.name)] || null;
       p.noDrive = NODRIVE.has(titleKey(p.name));
+      p.gtrOk = false; // GT-R se povoluje jen dočasně (do odpojení)
       if (p.noDrive) sendTo(ws, { type: 'grant', kind: 'drive', value: false });
       broadcast();
 
@@ -195,7 +196,7 @@ wss.on('connection', ws => {
         if (!Number.isFinite(value) || value < 1 || value > 1000000) return;
       } else if (kind === 'weapon') {
         if (!WEAPON_IDS.includes(value)) return;
-      } else if (kind === 'aim' || kind === 'drive') {
+      } else if (kind === 'aim' || kind === 'drive' || kind === 'gtr') {
         value = !!value;
       } else if (kind === 'skin') {
         if (value !== null && !SKIN_IDS.includes(value)) return;
@@ -207,6 +208,7 @@ wss.on('connection', ws => {
         if (!t.joined || t === p || t.room !== p.room) continue;
         if (String(m.to) !== 'all' && t.id !== String(m.to)) continue;
         if (kind === 'skin') t.skin = value;
+        if (kind === 'gtr') { t.gtrOk = value; if (!value && t.veh && t.veh.k === 'gtr') { t.veh = null; releaseRiders(t, 'driver'); } }
         if (kind === 'drive') { t.noDrive = !value; if (value) NODRIVE.delete(titleKey(t.name)); else NODRIVE.add(titleKey(t.name)); }
         if (tws.readyState === WebSocket.OPEN) {
           tws.send(JSON.stringify({ type: 'grant', kind, value }));
@@ -312,7 +314,7 @@ wss.on('connection', ws => {
 
       // auto, ve kterém hráč právě jede (vidí ho ostatní)
       const v = m.veh;
-      if (v && typeof v === 'object' && VEH_KINDS.includes(v.k)) {
+      if (v && typeof v === 'object' && VEH_KINDS.includes(v.k) && (v.k !== 'gtr' || p.admin || p.gtrOk)) {
         const pt = Number(v.pt);
         p.veh = {
           k: v.k,

@@ -612,6 +612,48 @@ const MB={x0:-1500,x1:1260,z:1000,zones:[[-1500,-520,-720,720,'#5a6a46'],[-450,9
  [-36,36].forEach(z=>{for(let k=0;k<9;k++){const a=mkVeh(-1450+k*300+RB()*80,z+2.7,Math.PI/2,'npc',pc(),13+RB()*8),b=mkVeh(1230-k*300-RB()*80,z-2.7,-Math.PI/2,'npc',pc(),13+RB()*8);a.lo=b.lo=-1480;a.hi=b.hi=1240;}});
  window.__wa=dt=>{fw.rotation.z-=dt*0.1;fw.children.forEach(c=>{if(c.userData.g)c.rotation.z=-fw.rotation.z;});};
 })();
+
+// ===== MATÝSKOVA VILA V HORÁCH (severovýchodní okraj mapy) – sem odlétá půjčené GT-R =====
+const VILLA=(function(){
+ const VX=1120,VZ=830,px=VX-9,pz=VZ-13;
+ const M=c=>new THREE.MeshLambertMaterial({color:c});
+ const solid=(x,y0,z,sx,h2,sz,mat,col)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(sx,h2,sz),mat);m.position.set(x,y0+h2/2,z);m.castShadow=m.receiveShadow=true;scene.add(m);if(col)addBox(x,y0,z,sx,h2,sz);return m;};
+ const flat=(w,d,c,x,y,z,basic)=>{const o=new THREE.Mesh(new THREE.PlaneGeometry(w,d),basic?new THREE.MeshBasicMaterial(basic):M(c));o.rotation.x=-Math.PI/2;o.position.set(x,y,z);o.receiveShadow=true;scene.add(o);return o;};
+ const stone=M(0xd9d2c3),dark=M(0x2b2f36),wood=M(0x6b4a2f),rock=M(0x8a8f96);
+ // terasa a příjezd
+ flat(46,36,0x6f7a63,VX,0.03,VZ-8);flat(9,36,0x3a3d42,VX-9,0.05,VZ-25);flat(28,16,0x8c8c86,VX,0.06,VZ-2);
+ // dům: přízemí + patro + ploché střechy
+ solid(VX,0,VZ+2,26,7,14,stone,true);solid(VX-4,7,VZ+3,17,4.5,12,M(0xf0ebe0),true);
+ solid(VX,7,VZ+2,27.4,0.5,15.4,dark);solid(VX-4,11.5,VZ+3,18.4,0.5,13.4,dark);
+ solid(VX+9,0,VZ+9.5,3,13,3,rock,false);
+ // prosklená fasáda (čelo domu k příjezdu)
+ const gl=new THREE.MeshBasicMaterial({color:0x8fc7ee});
+ const g1=new THREE.Mesh(new THREE.PlaneGeometry(18,4.6),gl);g1.position.set(VX-2,3.6,VZ-5.03);g1.rotation.y=Math.PI;scene.add(g1);
+ const g2=new THREE.Mesh(new THREE.PlaneGeometry(12,3.2),gl);g2.position.set(VX-4,9.3,VZ-3.03);g2.rotation.y=Math.PI;scene.add(g2);
+ const dr=new THREE.Mesh(new THREE.PlaneGeometry(2.6,4),new THREE.MeshBasicMaterial({color:0x4a2f1a}));dr.position.set(VX+8,2,VZ-5.03);dr.rotation.y=Math.PI;scene.add(dr);
+ // dřevěná terasa + lehátka
+ solid(VX-2,0,VZ-8,22,0.25,5.5,wood,false);
+ [-8,-3,2].forEach(o=>solid(VX+o,0.25,VZ-9,2.4,0.5,1.2,M(0xf2f2f2),false));
+ // brána + cedule
+ [-5.5,5.5].forEach(o=>solid(VX-9+o,0,VZ-43,1.4,3.4,1.4,rock,false));
+ const cv=document.createElement('canvas');cv.width=512;cv.height=128;const c2=cv.getContext('2d');
+ c2.fillStyle='#14161c';c2.fillRect(0,0,512,128);c2.strokeStyle='#a56bff';c2.lineWidth=6;c2.strokeRect(6,6,500,116);
+ c2.fillStyle='#fff';c2.font='bold 52px sans-serif';c2.textAlign='center';c2.textBaseline='middle';c2.fillText('VILA MATÝSKA',256,52);c2.font='bold 28px sans-serif';c2.fillStyle='#35e0ff';c2.fillText('🏔 hory · soukromé',256,98);
+ const sg=new THREE.Mesh(new THREE.PlaneGeometry(10,2.5),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv)}));sg.position.set(VX-9,4.6,VZ-43.1);sg.rotation.y=Math.PI;scene.add(sg);
+ // parkovací místo GT-R: fialové neonové pole
+ flat(6.4,10,0,px,0.08,pz,{color:0xa56bff,transparent:true,opacity:0.35,depthWrite:false});
+ // borovice kolem (mimo příjezd a dům)
+ const T=[];for(let i=0;i<70;i++){const a=rand()*Math.PI*2,r=34+rand()*95,x=VX+Math.cos(a)*r*1.3,z=VZ+Math.sin(a)*r;
+  if(x>1245||z>985||x<VX-120)continue;if(Math.abs(x-(VX-9))<9&&z<VZ)continue;if(Math.abs(x-VX)<22&&Math.abs(z-VZ)<18)continue;T.push([x,z,0.9+rand()*1.1]);}
+ const dm=new THREE.Object3D(),mk=(geo,col,fn)=>{const m=new THREE.InstancedMesh(geo,new THREE.MeshLambertMaterial({color:col}),T.length);T.forEach((t,i)=>{fn(dm,t);dm.updateMatrix();m.setMatrixAt(i,dm.matrix);});m.castShadow=true;m.frustumCulled=false;scene.add(m);};
+ if(T.length){mk(new THREE.CylinderGeometry(0.3,0.45,3,6),0x5b4330,(o,t)=>{o.position.set(t[0],1.5*t[2],t[1]);o.scale.set(t[2],t[2],t[2]);o.rotation.set(0,0,0);});
+  mk(new THREE.ConeGeometry(2.6,9,7),0x24472f,(o,t)=>{o.position.set(t[0],3+4.5*t[2],t[1]);o.scale.set(t[2],t[2],t[2]);o.rotation.set(0,0,0);});}
+ // pohoří za vilou (za hranicí hratelné mapy)
+ const mts=[[1330,690,150,240],[1390,860,180,320],[1470,1010,210,400],[1250,1110,200,330],[1040,1130,170,270],[880,1110,150,230],[1480,560,160,260],[1180,1190,230,430],[1560,780,200,350]];
+ mts.forEach(([x,z,r,hh],i)=>{const m=new THREE.Mesh(new THREE.ConeGeometry(1,1,7),M('hsl('+(100+i*4)+',16%,'+(36+i%3*4)+'%)'));m.scale.set(r,hh,r);m.position.set(x,hh/2,z);scene.add(m);
+  if(hh>300){const s=new THREE.Mesh(new THREE.ConeGeometry(1,1,7),M(0xf4f6fa));s.scale.set(r*0.34,hh*0.28,r*0.34);s.position.set(x,hh*0.86,z);scene.add(s);}});
+ return {x:VX,z:VZ,px,pz,pyaw:Math.PI};
+})();
 const START=new V3(0,0.92,-36);
 const P={pos:START.clone(),vel:new V3(),yaw:0,grounded:true,rope:null,phase:0,camYaw:0};
 const holds={l:new Set(),r:new Set(),rope:new Set(),f:new Set(),b:new Set(),aim:new Set(),fire:new Set()};
@@ -622,13 +664,14 @@ const SKINS={gold:{n:'Zlatý',suit:0xc99a00,emi:0x3a2a00,gold:0xffffff,dark:0x2a
 const SKIN_DEF={suit:0x2ec4b6,emi:0x000000,gold:0xffd166,dark:0x0e1a2e};
 function paint(h,s){const m=h.mats;m.suit.color.set(s.suit);m.suit.emissive.set(s.emi);m.gold.color.set(s.gold);m.gold.emissive.set(0);m.dark.color.set(s.dark);h.crown.visible=!!s.crown;}
 let canDrive=true,banW=0;
-function clearGrants(){canDrive=true;
+function clearGrants(){canDrive=true;if(!isCreator)removeGTR();
  money=Math.max(0,money-SESS.money);owned=owned.filter(x=>!SESS.weapons.includes(x));if(!owned.includes(equipped))equipped='fist';equip();
  if(SESS.aim)CH.aim=false;
  SESS.money=0;SESS.weapons=[];SESS.aim=false;if(SESS.skin){SESS.skin=null;setSkin(isCreator,isHelper);}
  save();
 }
-function applyGrant(m){if(m.kind==='drive'){canDrive=!!m.value;toast(canDrive?'Matýsek ti povolil řízení 🚗':'Matýsek ti zakázal řízení 🚫',2800);return;}
+function applyGrant(m){if(m.kind==='gtr'){if(isCreator)return;if(m.value){GTR.ok=true;if(spawnGTR(true))toast('Matýsek ti půjčil GT-R 🏎 – nastup (Auto / G). T = vzlet. Spawnout ho sám nemůžeš.',3600);}else{const v=GTR.v;GTR.ok=false;if(v){sendGtrHome(v);toast('Matýsek ti vzal GT-R – samo odlétá do jeho vily v horách 🏔',3200);}}return;}
+ if(m.kind==='drive'){canDrive=!!m.value;toast(canDrive?'Matýsek ti povolil řízení 🚗':'Matýsek ti zakázal řízení 🚫',2800);return;}
  if(m.kind==='money'){const v=Math.floor(Number(m.value));if(!(v>0))return;money+=v;SESS.money+=v;toast('Matýsek ti dal $'+v,2500);}
  else if(m.kind==='weapon'){const w=WEAPONS.find(x=>x.id===m.value);if(!w)return;if(!owned.includes(w.id)){owned.push(w.id);SESS.weapons.push(w.id);}equipped=w.id;equip();toast('Dostal jsi zbraň: '+w.name,2500);}
  else if(m.kind==='aim'){SESS.aim=!!m.value;CH.aim=SESS.aim;if(SESS.aim)CH.act='Vždy';toast(SESS.aim?'Aimbot zapnut (do odpojení)':'Aimbot vypnut',2500);}
@@ -640,6 +683,10 @@ function applyTitle(o,g,t){const k=t&&t.text?t.text+'|'+t.color:'';if(o.tk===k)r
  if(!k)return;const cv=document.createElement('canvas');cv.width=320;cv.height=80;const c=cv.getContext('2d');
  c.font='bold 44px sans-serif';c.textAlign='center';c.textBaseline='middle';c.lineJoin='round';c.lineWidth=8;c.strokeStyle='rgba(0,0,0,.8)';c.strokeText(t.text,160,40);c.fillStyle=t.color;c.fillText(t.text,160,40);
  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true,depthTest:false}));sp.scale.set(4,1,1);sp.position.y=3;sp.renderOrder=10;g.add(sp);o.ts=sp;}
+const gtrUI=(id,q)=>{const on=id==='all'?null:!!q.gtrok;
+ return '<div class="hi" style="flex-direction:row;flex-wrap:wrap;margin-top:4px">'+(id==='all'
+ ?'<button data-gt2="all" data-v="1">🏎 GT-R všem: půjčit</button><button data-gt2="all" data-v="0">🏎 GT-R všem: vzít</button>'
+ :'<button data-gt2="'+id+'" data-v="'+(on?0:1)+'" style="border:2px solid '+(on?'#4ee08a':'#888')+'">🏎 GT-R: '+(on?'půjčeno (vzít)':'půjčit')+'</button>')+'</div>';};
 const driveUI=(id,q)=>{const on=id==='all'?null:!q.nodrive;
  return '<div class="hi" style="flex-direction:row;flex-wrap:wrap;margin-top:4px">'+(id==='all'
  ?'<button data-dr="all" data-v="1">🚗 Řízení všem: ON</button><button data-dr="all" data-v="0">🚫 Řízení všem: OFF</button>'
@@ -656,7 +703,7 @@ function renderAdm(){
   +'<select data-w="'+id+'">'+WEAPONS.filter(w=>w.id!=='fist').map(w=>'<option value="'+w.id+'">'+w.name+'</option>').join('')+'</select><button data-gw="'+id+'">Dát zbraň</button>'
   +'<button data-g="aim" data-v="1" data-id="'+id+'">Aimbot ON</button><button data-g="aim" data-v="0" data-id="'+id+'">Aimbot OFF</button>'
   +'<select data-s="'+id+'"><option value="">bez skinu</option>'+Object.keys(SKINS).filter(k=>k!=='owner').map(k=>'<option value="'+k+'">'+SKINS[k].n+'</option>').join('')+'</select><button data-gs="'+id+'">Dát skin</button>'
-  +driveUI(id,q)+(id==='all'?'':titleUI(id))+'</div></div>').join('');
+  +driveUI(id,q)+gtrUI(id,q)+(id==='all'?'':titleUI(id))+'</div></div>').join('');
  const send=(to,kind,value)=>{if(MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify({type:'grant',to,kind,value}));};
  adm.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{const k=b.dataset.g;send(b.dataset.id,k,k==='aim'?b.dataset.v==='1':+b.dataset.v);});
  adm.querySelectorAll('[data-gw]').forEach(b=>b.onclick=()=>send(b.dataset.gw,'weapon',adm.querySelector('[data-w="'+b.dataset.gw+'"]').value));
@@ -665,6 +712,7 @@ function renderAdm(){
  adm.querySelectorAll('[data-gt]').forEach(b=>b.onclick=()=>{const v=adm.querySelector('[data-tt="'+b.dataset.gt+'"]').value.trim();if(v){sendT(b.dataset.gt,v);toast('Titul odeslán',1200);}});
  adm.querySelectorAll('[data-rt]').forEach(b=>b.onclick=()=>{sendT(b.dataset.rt,'');toast('Titul odebrán',1200);});
  adm.querySelectorAll('[data-dr]').forEach(b=>b.onclick=()=>{const id=b.dataset.dr,on=b.dataset.v==='1';send(id,'drive',on);if(id==='all')MP.players.forEach(q=>q.nodrive=!on);else{const q=MP.players.get(id);if(q)q.nodrive=!on;}setTimeout(()=>{if(!adm.hidden)renderAdm();},250);});
+ adm.querySelectorAll('[data-gt2]').forEach(b=>b.onclick=()=>{const id=b.dataset.gt2,on=b.dataset.v==='1';send(id,'gtr',on);if(id==='all')MP.players.forEach(q=>q.gtrok=on);else{const q=MP.players.get(id);if(q)q.gtrok=on;}setTimeout(()=>{if(!adm.hidden)renderAdm();},250);});
  $('ax').onclick=toggleAdm;
 }
 function toggleAdm(){if(!MP.admin){adm.hidden=true;return;}if(adm.hidden){Object.values(holds).forEach(x=>x.clear());$('panel').hidden=true;hk.hidden=true;renderAdm();adm.hidden=false;paused=true;}else{adm.hidden=true;paused=false;}}
@@ -695,7 +743,7 @@ function mpConnect(){
       const tex=new THREE.CanvasTexture(cv),spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));spr.scale.set(3.2,.8,1);spr.position.y=2.2;model.g.add(spr);
       q={model,target:new V3(),yaw:0,name:p.name||'Hráč'};MP.players.set(p.id,q);
      }
-     q.nodrive=!!p.nodrive;applyTitle(q,q.model.g,p.title);const sk=p.skin||(p.role==='creator'?'owner':null);if(q.skin!==sk){q.skin=sk;paint(q.model,sk&&SKINS[sk]?SKINS[sk]:SKIN_DEF);}
+     q.nodrive=!!p.nodrive;q.gtrok=!!p.gtrok;applyTitle(q,q.model.g,p.title);const sk=p.skin||(p.role==='creator'?'owner':null);if(q.skin!==sk){q.skin=sk;paint(q.model,sk&&SKINS[sk]?SKINS[sk]:SKIN_DEF);}
      if(Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.z)){q.target.set(p.x,p.y,p.z);q.yaw=Number(p.yaw)||0;}
      q.veh=(p.veh&&typeof p.veh==='object'&&typeof p.veh.k==='string')?{k:String(p.veh.k),c:(Number(p.veh.c)>>>0)&0xffffff,pt:Math.max(-1,Math.min(1,Number(p.veh.pt)||0))}:null;q.ride=p.ride?String(p.ride):null;
     }
@@ -1351,6 +1399,7 @@ function toggleCar(){
  if(paused||GAR.ph)return;if(RIDE){rideLeave();return;}if(drv){exitCar();return;}
  {const nr=nearRemote(),ld=nearV?Math.hypot(P.pos.x-nearV.x,P.pos.z-nearV.z):1e9;if(nr&&nr.d<ld){rideBoard(nr.id);return;}}
  if(!nearV){toast('Jdi blíž k autu (do 9 m) a stiskni Auto / G.',2000);return;}
+ if(nearV.gtr&&!isCreator&&(nearV.ap||!GTR.ok)){toast(nearV.ap?'GT-R právě odjíždí do Matýskovy vily 🏔':'Tohle GT-R patří Matýskovi 🔒',2200);return;}
  if(!canDrive){toast('Řízení ti zakázal Matýsek 🚫',2200);return;}
  const v=nearV;toast(v.mode==='npc'?'Ukradl jsi auto! 🚗':'W/S plyn · A/D zatáčení · LANO = ruční brzda · Auto = vystoupit',2400);
  car=v;carG=v.g;v.mode='player';drv=true;hero.g.visible=false;P.rope=null;T.dur=0;if(v.cop&&!WANT.on){toast('Ukradl jsi policejní auto! 🚨',2200);setWanted(true);}
@@ -1444,7 +1493,7 @@ function vehUpdate(dt){
  if(drv&&!(car.y>2.5)){for(const w of VEH){if(w===car)continue;const dx=w.x-car.x,dz=w.z-car.z,d=Math.hypot(dx,dz);
   if(d<3.6&&d>0.01){const o=3.6-d,rv=Math.abs(car.sp-(w.mode==='player'?0:w.sp));car.x-=dx/d*o*0.6;car.z-=dz/d*o*0.6;w.x+=dx/d*o*0.4;w.z+=dz/d*o*0.4;if(rv>5)crash(rv);if(w.mode==='npc')w.stun=1.5;}}
   for(const n of NPCS){if(n.alive&&Math.abs(car.sp)>6&&Math.hypot(n.g.position.x-car.x,n.g.position.z-car.z)<2.4)hurt(n,300,false,n.g.position.clone().add(new V3(0,1,0)));}}
- copUpdate(dt);for(const v of VEH){v.g.position.set(v.x,v.y||0,v.z);v.g.rotation.y=v.yaw;if(v.gtr)gtrFx(v);if(v.cop){const f=Math.floor(performance.now()/180)%2;v.lr.visible=f===0;v.lb.visible=f===1;}}
+ copUpdate(dt);for(const v of VEH){if(v.ap)gtrAuto(v,dt);v.g.position.set(v.x,v.y||0,v.z);v.g.rotation.y=v.yaw;if(v.gtr)gtrFx(v);if(v.cop){const f=Math.floor(performance.now()/180)%2;v.lr.visible=f===0;v.lb.visible=f===1;}}
  if(hpP<100&&hitCd<-5)hpP=Math.min(100,hpP+2*dt);
 }
 function crash(v){
@@ -1534,7 +1583,7 @@ function spawnM4(){
  toast('BMW M4 CSL je před tebou – nastup (Auto / G).',2600);return true;
 }
 // ===== SPAWN AUT: NISSAN GT-R (R35) se spoilerem – JEN PRO MATÝSKA (creator) =====
-const GTCOL=[['Bayside modrá',0x1d4fb0],['Gun metal',0x5a5e66],['Perlová bílá',0xf2f2f2],['Černá',0x0d0e10],['Vibrant červená',0xc4151c],['Super stříbrná',0xb7bcc3]],GTR={v:null,c:0};
+const GTCOL=[['Bayside modrá',0x1d4fb0],['Gun metal',0x5a5e66],['Perlová bílá',0xf2f2f2],['Černá',0x0d0e10],['Vibrant červená',0xc4151c],['Super stříbrná',0xb7bcc3]],GTR={v:null,c:0,ok:false};
 function makeGTR(){
  const g=new THREE.Group(),S=(c,r,m)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
  const paint=S(GTCOL[GTR.c][1],0.22,0.65),carbon=S(0x121417,0.4,0.4),rim=S(0x2b2d31,0.3,0.9),ti=S(0x9a9ea5,0.3,0.9),red=new THREE.MeshBasicMaterial({color:0xd0202a}),drl=new THREE.MeshBasicMaterial({color:0xffffff}),grill=S(0x07080a,0.6,0.2);
@@ -1586,9 +1635,30 @@ function toggleFly(){if(paused||!drv||!car||!car.gtr)return;
  else{car.fly=false;toast('Přistávám…',1200);}}
 $('bfly').addEventListener('pointerdown',e=>{e.preventDefault();toggleFly();});
 window.addEventListener('keydown',e=>{if(e.code!=='KeyT'||!drv||!car||!car.gtr)return;const tg=e.target&&e.target.tagName;if(tg==='INPUT'||tg==='TEXTAREA')return;e.stopImmediatePropagation();e.preventDefault();if(!e.repeat)toggleFly();},true);
+function sendGtrHome(v){
+ if(!v||v.home||v.ap)return;
+ if(drv&&car===v)exitCar(true);
+ v.ap={t:0};v.mode='parked';v.fly=true;v.vy=Math.max(v.vy||0,8);v.y=Math.max(v.y||0,0.05);v.sp=Math.max(v.sp||0,0);
+}
+function gtrAuto(v,dt){
+ const a=v.ap;if(!a)return;a.t+=dt;
+ const dx=VILLA.px-v.x,dz=VILLA.pz-v.z,d=Math.hypot(dx,dz);
+ let df=Math.atan2(dx,dz)-v.yaw;df=Math.atan2(Math.sin(df),Math.cos(df));
+ const turn=a.t<1?3.4:1.6;v.yaw+=Math.max(-turn*dt,Math.min(turn*dt,df));
+ let tgtSp=110,tgtY=85;
+ if(d<460){tgtSp=Math.max(7,Math.min(110,d*0.45));tgtY=Math.max(0,Math.min(85,(d-6)*0.35));}
+ v.fly=true;v.sp+=(tgtSp-v.sp)*Math.min(1,1.6*dt);
+ const vyT=Math.max(-40,Math.min(32,(tgtY-(v.y||0))*1.2));v.vy+=(vyT-v.vy)*Math.min(1,3*dt);v.y=Math.max(0,(v.y||0)+v.vy*dt);
+ v.x+=Math.sin(v.yaw)*v.sp*dt;v.z+=Math.cos(v.yaw)*v.sp*dt;
+ v.pt+=((-Math.max(-1,Math.min(1,v.vy/32))*0.38)-(v.pt||0))*Math.min(1,6*dt);
+ if(d<5&&v.y<0.4){
+  v.ap=null;v.home=true;v.fly=false;v.sp=0;v.vy=0;v.y=0;v.pt=0;v.x=VILLA.px;v.z=VILLA.pz;v.lz=VILLA.pz;v.yaw=VILLA.pyaw;v.mode='parked';
+  toast('GT-R zaparkovalo u Matýskovy vily 🏔',2500);
+ }
+}
 function removeGTR(){const v=GTR.v;if(!v)return;if(drv&&car===v)exitCar(true);scene.remove(v.g);const i=VEH.indexOf(v);if(i>=0)VEH.splice(i,1);GTR.v=null;}
-function spawnGTR(){
- if(!isCreator){toast('Nissan GT-R je jen pro Matýska.',2200);return false;}
+function spawnGTR(granted){
+ if(!isCreator&&granted!==true){toast('Nissan GT-R je jen pro Matýska.',2200);return false;}
  const cur=GTR.v;if(cur&&drv&&car===cur){toast('Nejdřív vystup z GT-R.',1800);return false;}
  const px=P.pos.x,pz=P.pos.z,yaw=P.yaw;let pos=null;
  for(const a of [0,0.9,-0.9,1.8,-1.8,3.14]){
@@ -1600,7 +1670,7 @@ function spawnGTR(){
  }
  if(!pos)pos=[px+Math.sin(yaw)*8,pz+Math.cos(yaw)*8];
  if(!cur){const g=makeGTR();scene.add(g);const v={x:pos[0],z:pos[1],lz:pos[1],yaw,sp:0,hp:10000,cd:0,stun:0,mode:'parked',v:0,g,gtr:true,y:0,vy:0,pt:0,fly:false};VEH.push(v);GTR.v=v;}
- else{cur.x=pos[0];cur.z=pos[1];cur.lz=pos[1];cur.yaw=yaw;cur.sp=0;cur.hp=10000;cur.y=0;cur.vy=0;cur.pt=0;cur.fly=false;cur.mode='parked';}
+ else{cur.ap=null;cur.home=false;cur.x=pos[0];cur.z=pos[1];cur.lz=pos[1];cur.yaw=yaw;cur.sp=0;cur.hp=10000;cur.y=0;cur.vy=0;cur.pt=0;cur.fly=false;cur.mode='parked';}
  GTR.v.g.userData.paint.color.setHex(GTCOL[GTR.c][1]);
  GTR.v.g.position.set(GTR.v.x,0,GTR.v.z);GTR.v.g.rotation.y=GTR.v.yaw;
  toast('Nissan GT-R je před tebou – nastup (Auto / G). T = vzlet.',2800);return true;
