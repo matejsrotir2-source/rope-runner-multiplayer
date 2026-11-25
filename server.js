@@ -3,9 +3,16 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const WebSocket = require('ws');
+const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
 const GAME_FILE = path.join(__dirname, 'Rope_Runner_3D_Multiplayer.html');
+
+// Admin (Matýsek) – heslo se ověřuje tady na serveru. Hash můžeš přepsat proměnnou ADMIN_HASH.
+const ADMIN_NAME = 'matysek';
+const ADMIN_HASH = process.env.ADMIN_HASH || '3e27c7ca3f5bd42636e743e906278057ee13f8791fbf086bb72ba178fa1f8bfe';
+const WEAPON_IDS = ['pistol', 'sword', 'smg', 'shotgun', 'bazooka'];
+const SKIN_IDS = ['gold', 'neon', 'lava', 'ice', 'ghost'];
 
 const server = http.createServer((req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
@@ -66,7 +73,7 @@ function broadcast() {
           x: other.x,
           y: other.y,
           z: other.z,
-          yaw: other.yaw
+          yaw: other.yaw, skin: other.skin || null, role: other.role || null
         });
       }
     }
@@ -110,6 +117,50 @@ wss.on('connection', ws => {
         .slice(0, 20) || 'Hráč';
 
       p.room = String(m.room || 'sidliste').slice(0, 32);
+      broadcast();
+
+    } else if (m.type === 'auth' && p.joined) {
+      p.authFails = p.authFails || 0;
+      if (p.authFails >= 5) return;
+
+      const n = String(m.name || '').toLowerCase();
+      const h = crypto.createHash('sha256').update(n + ':' + String(m.pass || '')).digest('hex');
+
+      if (n === ADMIN_NAME && h === ADMIN_HASH) {
+        p.admin = true;
+        p.role = 'creator';
+        p.name = String(m.name).replace(/[<>]/g, '').slice(0, 20);
+        ws.send(JSON.stringify({ type: 'admin', ok: true }));
+        broadcast();
+      } else {
+        p.authFails++;
+      }
+
+    } else if (m.type === 'grant' && p.admin) {
+      const kind = m.kind;
+      let value = m.value;
+
+      if (kind === 'money') {
+        value = Math.floor(Number(value));
+        if (!Number.isFinite(value) || value < 1 || value > 1000000) return;
+      } else if (kind === 'weapon') {
+        if (!WEAPON_IDS.includes(value)) return;
+      } else if (kind === 'aim') {
+        value = !!value;
+      } else if (kind === 'skin') {
+        if (value !== null && !SKIN_IDS.includes(value)) return;
+      } else {
+        return;
+      }
+
+      for (const [tws, t] of clients) {
+        if (!t.joined || t === p || t.room !== p.room) continue;
+        if (String(m.to) !== 'all' && t.id !== String(m.to)) continue;
+        if (kind === 'skin') t.skin = value;
+        if (tws.readyState === WebSocket.OPEN) {
+          tws.send(JSON.stringify({ type: 'grant', kind, value }));
+        }
+      }
       broadcast();
 
     } else if (m.type === 'state' && p.joined) {

@@ -34,8 +34,8 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 #pad{display:grid;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(2,52px);gap:6px}
 #side{display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:1;max-width:250px}
 #ov{position:absolute;left:0;top:0;pointer-events:none}
-#hk{position:absolute;inset:0;background:#0a1030f2;overflow:auto;padding:8px;box-sizing:border-box;font-size:13px}
-#hk[hidden]{display:none}
+#hk,#adm{position:absolute;inset:0;background:#0a1030f2;overflow:auto;padding:8px;box-sizing:border-box;font-size:13px}
+#hk[hidden],#adm[hidden]{display:none}
 .hh{display:flex;gap:8px;align-items:center;justify-content:space-between;border-bottom:1px solid #2e6bff;padding:4px 2px 8px}
 .hh button{background:#14213d;color:#fff;border:1px solid #fff4;border-radius:8px;padding:4px 10px}
 .hb{display:flex;gap:8px;margin-top:8px}
@@ -78,9 +78,9 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 <body>
 <div id="view"><canvas id="ov"></canvas>
  <div id="hudL"><div id="mt"></div><div id="mp"></div><div id="mpstatus" style="font-size:11px;color:#7dff9b">Offline</div><div id="mtime"></div><div id="mmoney"></div><div style="margin-top:4px;width:120px;height:8px;background:#0008;border-radius:4px;overflow:hidden"><div id="hpf" style="height:100%;width:100%;background:#e63946"></div></div><canvas id="mm" width="120" height="66" style="margin-top:5px;border-radius:6px;background:#0b1424cc;border:1px solid #fff3;display:block"></canvas></div>
- <div id="hudR"><button id="bmenu">Mise</button><button id="bgun">Zbraně</button><button id="bcar">Auto</button><button id="bhk" hidden>Hack</button><button id="bst" aria-label="Nastavení">⚙</button><div id="arrowbox"><div id="arrow">▲</div><div id="adist"></div></div><div id="spd"></div></div>
+ <div id="hudR"><button id="bmenu">Mise</button><button id="bgun">Zbraně</button><button id="bcar">Auto</button><button id="bhk" hidden>Hack</button><button id="bpl" hidden>Hráči</button><button id="bst" aria-label="Nastavení">⚙</button><div id="arrowbox"><div id="arrow">▲</div><div id="adist"></div></div><div id="spd"></div></div>
  <div id="toast"></div>
- <div id="panel" hidden></div><div id="hk" hidden></div><div id="st" hidden></div>
+ <div id="panel" hidden></div><div id="hk" hidden></div><div id="adm" hidden></div><div id="st" hidden></div>
  <div id="login"><div class="lbox"><h2>Rope Runner 3D</h2><p>Přihlas se, nebo hraj jako host.</p><input id="lu" placeholder="Jméno" autocomplete="username" maxlength="20"><input id="lp" type="password" placeholder="Heslo (jen creator)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"><div id="lerr"></div><button id="lgo">Přihlásit</button><button id="lguest">Hrát jako host</button></div></div>
 </div>
 <div id="ctrl"><div id="pad"><span></span><button id="bw" aria-label="Vpřed">W</button><span></span><button id="bl" aria-label="Doleva">A</button><button id="bs" aria-label="Zpět">S</button><button id="br" aria-label="Doprava">D</button></div><div id="side"><button id="btr">TRIK</button><button id="bro">LANO</button><button id="bai">MÍŘ</button><button id="bfi">PAL</button></div></div>
@@ -102,7 +102,8 @@ const WEAPONS=[
 let money=0,owned=['fist'],equipped='fist',combo=0;const TUNE={armor:0,engine:0,spoiler:0,color:0};
 try{const sv0=JSON.parse(localStorage.getItem('rr3d')||'null');if(sv0&&sv0.t)Object.assign(TUNE,sv0.t);}catch(_){}
 try{const sv=JSON.parse(localStorage.getItem('rr3d')||'null');if(sv){money=sv.m|0;owned=sv.o||owned;equipped=sv.e||equipped;}}catch(_){}
-function save(){try{localStorage.setItem('rr3d',JSON.stringify({m:money,o:owned,e:equipped,t:TUNE}));}catch(_){}}
+const SESS={money:0,weapons:[],skin:null,aim:false};
+function save(){try{localStorage.setItem('rr3d',JSON.stringify({m:Math.max(0,money-SESS.money),o:owned.filter(x=>!SESS.weapons.includes(x)),e:SESS.weapons.includes(equipped)?'fist':equipped,t:TUNE}));}catch(_){}}
 function addMoney(n){money=(typeof CH!=='undefined'&&CH.rich)?99999999:money+n;save();}
 
 const view=$('view');
@@ -371,6 +372,41 @@ const holds={l:new Set(),r:new Set(),rope:new Set(),f:new Set(),b:new Set(),aim:
 
 // ===== ONLINE MULTIPLAYER =====
 // Players share one world. Movement is synchronized; missions/vehicles/combat remain local in this first version.
+const SKINS={gold:{n:'Zlatý',suit:0xc99a00,emi:0x3a2a00,gold:0xffffff,dark:0x2a1a00},neon:{n:'Neon',suit:0x00e676,emi:0x003d1f,gold:0xff2bd6,dark:0x001a10},lava:{n:'Láva',suit:0xff4500,emi:0x4a1200,gold:0xffd000,dark:0x1a0600},ice:{n:'Led',suit:0x8fe3ff,emi:0x10303a,gold:0xffffff,dark:0x16394d},ghost:{n:'Duch',suit:0xe8e8f0,emi:0x303040,gold:0x9aa0ff,dark:0x55556a},owner:{n:'Creator',suit:0x3a1478,emi:0x1c0a40,gold:0x35e0ff,dark:0x07050f,crown:true}};
+const SKIN_DEF={suit:0x2ec4b6,emi:0x000000,gold:0xffd166,dark:0x0e1a2e};
+function paint(h,s){const m=h.mats;m.suit.color.set(s.suit);m.suit.emissive.set(s.emi);m.gold.color.set(s.gold);m.gold.emissive.set(0);m.dark.color.set(s.dark);h.crown.visible=!!s.crown;}
+function clearGrants(){
+ money=Math.max(0,money-SESS.money);owned=owned.filter(x=>!SESS.weapons.includes(x));if(!owned.includes(equipped))equipped='fist';equip();
+ if(SESS.aim)CH.aim=false;
+ SESS.money=0;SESS.weapons=[];SESS.aim=false;if(SESS.skin){SESS.skin=null;setSkin(isCreator,isHelper);}
+ save();
+}
+function applyGrant(m){
+ if(m.kind==='money'){const v=Math.floor(Number(m.value));if(!(v>0))return;money+=v;SESS.money+=v;toast('Matýsek ti dal $'+v,2500);}
+ else if(m.kind==='weapon'){const w=WEAPONS.find(x=>x.id===m.value);if(!w)return;if(!owned.includes(w.id)){owned.push(w.id);SESS.weapons.push(w.id);}equipped=w.id;equip();toast('Dostal jsi zbraň: '+w.name,2500);}
+ else if(m.kind==='aim'){SESS.aim=!!m.value;CH.aim=SESS.aim;if(SESS.aim)CH.act='Vždy';toast(SESS.aim?'Aimbot zapnut (do odpojení)':'Aimbot vypnut',2500);}
+ else if(m.kind==='skin'){SESS.skin=m.value;if(m.value&&SKINS[m.value])paint(hero,SKINS[m.value]);else setSkin(isCreator,isHelper);toast(m.value&&SKINS[m.value]?'Nový skin: '+SKINS[m.value].n:'Skin odebrán',2500);}
+ save();
+}
+const adm=$('adm');
+function renderAdm(){
+ const ps=[['all',{name:'Všichni hráči'}],...MP.players.entries()];
+ adm.innerHTML='<div class="hh"><b>Správa hráčů</b><span>dočasně – do odpojení</span><button id="ax">✕</button></div>'
+ +(ps.length>1?'':'<div class="hf">Nikdo jiný není online.</div>')
+ +ps.map(([id,q])=>'<div class="hf" style="border-top:1px solid #fff2;padding:6px 0"><b style="color:#35e0ff">'+q.name+'</b><div class="hi" style="flex-direction:row;flex-wrap:wrap;margin-top:4px">'
+  +'<button data-g="money" data-v="1000" data-id="'+id+'">+$1000</button><button data-g="money" data-v="10000" data-id="'+id+'">+$10000</button>'
+  +'<select data-w="'+id+'">'+WEAPONS.filter(w=>w.id!=='fist').map(w=>'<option value="'+w.id+'">'+w.name+'</option>').join('')+'</select><button data-gw="'+id+'">Dát zbraň</button>'
+  +'<button data-g="aim" data-v="1" data-id="'+id+'">Aimbot ON</button><button data-g="aim" data-v="0" data-id="'+id+'">Aimbot OFF</button>'
+  +'<select data-s="'+id+'"><option value="">bez skinu</option>'+Object.keys(SKINS).filter(k=>k!=='owner').map(k=>'<option value="'+k+'">'+SKINS[k].n+'</option>').join('')+'</select><button data-gs="'+id+'">Dát skin</button>'
+  +'</div></div>').join('');
+ const send=(to,kind,value)=>{if(MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify({type:'grant',to,kind,value}));};
+ adm.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{const k=b.dataset.g;send(b.dataset.id,k,k==='aim'?b.dataset.v==='1':+b.dataset.v);});
+ adm.querySelectorAll('[data-gw]').forEach(b=>b.onclick=()=>send(b.dataset.gw,'weapon',adm.querySelector('[data-w="'+b.dataset.gw+'"]').value));
+ adm.querySelectorAll('[data-gs]').forEach(b=>b.onclick=()=>send(b.dataset.gs,'skin',adm.querySelector('[data-s="'+b.dataset.gs+'"]').value||null));
+ $('ax').onclick=toggleAdm;
+}
+function toggleAdm(){if(!MP.admin){adm.hidden=true;return;}if(adm.hidden){Object.values(holds).forEach(x=>x.clear());$('panel').hidden=true;hk.hidden=true;renderAdm();adm.hidden=false;paused=true;}else{adm.hidden=true;paused=false;}}
+$('bpl').addEventListener('click',toggleAdm);
 const MP={ws:null,connected:false,players:new Map(),lastSend:0,retry:0,room:'sidliste'};
 const mpName=()=>((curName||'Host').trim().slice(0,20)||'Host');
 function mpStatus(msg){const el=$('mpstatus');if(el)el.textContent=msg;}
@@ -380,9 +416,11 @@ function mpConnect(){
  const url=proto+'//'+location.host+'/ws';
  try{
   const ws=new WebSocket(url);MP.ws=ws;
-  ws.addEventListener('open',()=>{MP.connected=true;mpStatus('Online');ws.send(JSON.stringify({type:'join',name:mpName(),room:MP.room}));toast('Připojeno k multiplayeru',1500);});
+  ws.addEventListener('open',()=>{MP.connected=true;mpStatus('Online');ws.send(JSON.stringify({type:'join',name:mpName(),room:MP.room}));if(isCreator&&MP.pass)ws.send(JSON.stringify({type:'auth',name:curName,pass:MP.pass}));toast('Připojeno k multiplayeru',1500);});
   ws.addEventListener('message',ev=>{
    let m;try{m=JSON.parse(ev.data)}catch(_){return}
+   if(m.type==='grant'){applyGrant(m);return;}
+   if(m.type==='admin'&&m.ok){MP.admin=true;$('bpl').hidden=false;toast('Admin práva na hráče aktivní',2000);return;}
    if(m.type==='snapshot'&&Array.isArray(m.players)){
     const seen=new Set();
     for(const p of m.players){if(!p||p.id===m.id||typeof p.id!=='string')continue;seen.add(p.id);let q=MP.players.get(p.id);
@@ -391,12 +429,13 @@ function mpConnect(){
       const tex=new THREE.CanvasTexture(cv),spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));spr.scale.set(3.2,.8,1);spr.position.y=2.2;model.g.add(spr);
       q={model,target:new V3(),yaw:0,name:p.name||'Hráč'};MP.players.set(p.id,q);
      }
+     const sk=p.skin||(p.role==='creator'?'owner':null);if(q.skin!==sk){q.skin=sk;paint(q.model,sk&&SKINS[sk]?SKINS[sk]:SKIN_DEF);}
      if(Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.z)){q.target.set(p.x,p.y,p.z);q.yaw=Number(p.yaw)||0;}
     }
     for(const [id,q] of MP.players)if(!seen.has(id)){scene.remove(q.model.g);q.model.g.traverse(o=>{if(o.isMesh){o.geometry.dispose();if(o.material&&o.material.map)o.material.map.dispose();}});MP.players.delete(id);}
    }
   });
-  ws.addEventListener('close',()=>{MP.connected=false;mpStatus('Odpojeno – připojuji…');for(const q of MP.players.values())scene.remove(q.model.g);MP.players.clear();if(!paused)setTimeout(mpConnect,2500);});
+  ws.addEventListener('close',()=>{clearGrants();MP.admin=false;$('bpl').hidden=true;adm.hidden=true;MP.connected=false;mpStatus('Odpojeno – připojuji…');for(const q of MP.players.values())scene.remove(q.model.g);MP.players.clear();if(!paused)setTimeout(mpConnect,2500);});
   ws.addEventListener('error',()=>{MP.connected=false;mpStatus('Server nedostupný');});
  }catch(_){mpStatus('Nelze se připojit');}
 }
@@ -1010,14 +1049,14 @@ function enter(creator,name,helper){
  loginEl.hidden=true;paused=false;lp.value='';mpConnect();
  toast(creator?'Přihlášen: '+name+' 👑 (Hack menu odemčeno)':'Ahoj, '+(name||'hráči')+'!');
 }
-function logout(){isCreator=false;isHelper=false;Object.assign(CH,CH0);$('bhk').hidden=true;showLogin();}
+function logout(){MP.pass='';MP.admin=false;$('bpl').hidden=true;if(MP.ws)MP.ws.close();isCreator=false;isHelper=false;Object.assign(CH,CH0);$('bhk').hidden=true;showLogin();}
 let fails=0,lockUntil=0;
 async function tryLogin(){
  const name=lu.value.trim(),now=Date.now();
  if(now<lockUntil){lerr.textContent='Počkej '+Math.ceil((lockUntil-now)/1000)+' s…';return;}
  if(!name||!lp.value){lerr.textContent='Zadej jméno i heslo, nebo hraj jako host.';return;}
  const h=sha256(name.toLowerCase()+':'+lp.value);
- if(name.toLowerCase()===CREATOR_NAME&&h===CREATOR_HASH){fails=0;enter(true,name);}
+ if(name.toLowerCase()===CREATOR_NAME&&h===CREATOR_HASH){fails=0;MP.pass=lp.value;enter(true,name);}
  else if(name.toLowerCase()===HELPER_NAME&&h===HELPER_HASH){fails=0;enter(false,name,true);}
  else{fails++;lerr.textContent='Špatné jméno nebo heslo.';lp.value='';if(fails>=3){lockUntil=Date.now()+Math.min(30000,(fails-2)*5000);}}
 }
