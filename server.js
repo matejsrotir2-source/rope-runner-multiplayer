@@ -11,7 +11,7 @@ const GAME_FILE = path.join(__dirname, 'Rope_Runner_3D_Multiplayer.html');
 // Admin (Matýsek) – heslo se ověřuje tady na serveru. Hash můžeš přepsat proměnnou ADMIN_HASH.
 const ADMIN_NAME = 'matysek';
 const ADMIN_HASH = process.env.ADMIN_HASH || '3e27c7ca3f5bd42636e743e906278057ee13f8791fbf086bb72ba178fa1f8bfe';
-const WEAPON_IDS = ['pistol', 'sword', 'smg', 'shotgun', 'bazooka'];
+const WEAPON_IDS = ['knife', 'bat', 'pistol', 'revolver', 'smg', 'sword', 'shotgun', 'rifle', 'sniper', 'bazooka', 'minigun'];
 const SKIN_IDS = ['gold', 'neon', 'lava', 'ice', 'ghost'];
 
 const server = http.createServer((req, res) => {
