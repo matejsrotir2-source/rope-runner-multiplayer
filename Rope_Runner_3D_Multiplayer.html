@@ -123,7 +123,7 @@ body.wide #joy{pointer-events:auto;opacity:.85}
 <body>
 <div id="view"><canvas id="ov"></canvas>
  <div id="hudL"><div id="mt"></div><div id="mp"></div><div id="mpstatus" style="font-size:11px;color:#7dff9b">Offline</div><div id="mtime"></div><div id="mmoney"></div><div style="margin-top:4px;width:120px;height:8px;background:#0008;border-radius:4px;overflow:hidden"><div id="hpf" style="height:100%;width:100%;background:#e63946"></div></div><canvas id="mm" width="120" height="66" style="margin-top:5px;border-radius:6px;background:#0b1424cc;border:1px solid #fff3;display:block"></canvas></div>
- <div id="hudR"><button id="bmenu">Mise</button><button id="bgun">Zbraně</button><button id="bcar">Auto</button><button id="bspawn" hidden aria-label="Spawn aut">🚘</button><button id="bfly" hidden>✈️ Vzlet (T)</button><button id="bfs" aria-label="Celá obrazovka">⛶</button><button id="bhk" hidden>Hack</button><button id="bpl" hidden>Hráči</button><button id="bmap">🗺 Mapa</button><button id="bchat" aria-label="Chat">💬</button><button id="bst" aria-label="Nastavení">⚙</button><div id="arrowbox"><div id="arrow">▲</div><div id="adist"></div></div><div id="spd"></div></div>
+ <div id="hudR"><button id="bmenu">Mise</button><button id="bgun">Zbraně</button><button id="bcar">Auto</button><button id="bspawn" hidden aria-label="Spawn aut">🚘</button><button id="bfly" hidden>✈️ Vzlet (T)</button><button id="btod" hidden aria-label="Denní doba">🌅</button><button id="bfs" aria-label="Celá obrazovka">⛶</button><button id="bhk" hidden>Hack</button><button id="bpl" hidden>Hráči</button><button id="bmap">🗺 Mapa</button><button id="bchat" aria-label="Chat">💬</button><button id="bst" aria-label="Nastavení">⚙</button><div id="arrowbox"><div id="arrow">▲</div><div id="adist"></div></div><div id="spd"></div></div>
  <div id="toast"></div><div id="chatlog"></div>
  <div id="chat" hidden><div class="cq" id="cq"></div><div class="cin"><input id="ci" maxlength="100" placeholder="Napiš zprávu…" autocomplete="off"><button id="csend">Poslat</button><button id="cx">✕</button></div></div>
  <div id="panel" hidden></div><div id="hk" hidden></div><div id="adm" hidden></div><div id="st" hidden></div>
@@ -190,24 +190,25 @@ window.addEventListener('resize',resize);resize();
  ['lgo','lguest'].forEach(id=>$(id).addEventListener('click',enterFS));
 })();
 
-scene.add(new THREE.HemisphereLight(0xcfe3ff,0x5d6b45,0.55));
+const hemi=new THREE.HemisphereLight(0xcfe3ff,0x5d6b45,0.55);scene.add(hemi);
 const sun=new THREE.DirectionalLight(0xffe8c2,1.25);scene.add(sun,sun.target);
 const SUNOFF=new V3(-110,150,75);
 sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
 Object.assign(sun.shadow.camera,{left:-100,right:100,top:100,bottom:-100,near:1,far:600});
 sun.shadow.bias=-0.0006;sun.shadow.normalBias=0.4;sun.shadow.radius=2;
+let SKYX=null,sunGlow=null;
 (function sky(){
  const cv=document.createElement('canvas');cv.width=8;cv.height=256;const g=cv.getContext('2d');
  const gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,'#2f6fb8');gr.addColorStop(0.35,'#6aa6dc');gr.addColorStop(0.5,'#c3d9ea');gr.addColorStop(1,'#c3d9ea');
  g.fillStyle=gr;g.fillRect(0,0,8,256);
- const d=new THREE.Mesh(new THREE.SphereGeometry(1200,24,16),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv),side:THREE.BackSide,fog:false,depthWrite:false}));
+ const d=new THREE.Mesh(new THREE.SphereGeometry(1200,24,16),new THREE.MeshBasicMaterial({map:(SKYX={cv,tex:new THREE.CanvasTexture(cv)}).tex,side:THREE.BackSide,fog:false,depthWrite:false}));
  d.renderOrder=-2;d.name='sky';scene.add(d);
 })();
 const sunBall=new THREE.Mesh(new THREE.SphereGeometry(14,16,12),new THREE.MeshBasicMaterial({color:0xfff6d0,fog:false}));
 sunBall.position.set(-300,260,300);scene.add(sunBall);
 (function glow(){const cv=document.createElement('canvas');cv.width=cv.height=128;const g=cv.getContext('2d');
  const r=g.createRadialGradient(64,64,0,64,64,64);r.addColorStop(0,'rgba(255,240,200,.9)');r.addColorStop(0.25,'rgba(255,220,160,.35)');r.addColorStop(1,'rgba(255,220,160,0)');g.fillStyle=r;g.fillRect(0,0,128,128);
- const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),blending:THREE.AdditiveBlending,fog:false,depthWrite:false}));sp.scale.set(220,220,1);sp.position.copy(sunBall.position);scene.add(sp);})();
+ const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),blending:THREE.AdditiveBlending,fog:false,depthWrite:false}));sp.scale.set(220,220,1);sp.position.copy(sunBall.position);scene.add(sp);sunGlow=sp;})();
 
 const MAXANI=Math.min(4,renderer.capabilities.getMaxAnisotropy());
 const baseTex={},texCache={};
@@ -467,8 +468,8 @@ const PAL=[0xb33a3a,0x2f4a8a,0xdcdcdc,0x222222,0x9aa0a6,0x2a7a52,0xc9962a,0x6a3d
  add(B,0x3f8f5f,60,3.2,6,3,0.3,3);
  [[56,2],[56,10],[64,12]].forEach(p=>add(B,0x7a4e2c,p[0],0.5,p[1],2.4,0.4,0.8));
 })();
-const clouds=[];
-for(let i=0;i<14;i++){const g=new THREE.Group();const m=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.9});
+const clouds=[],CLM=[];
+for(let i=0;i<14;i++){const g=new THREE.Group();const m=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.9});CLM.push(m);
  for(let k=0;k<4;k++){const s=new THREE.Mesh(new THREE.SphereGeometry(10+rand()*8,8,6),m);s.position.set(k*14-20,rand()*5,rand()*8);s.scale.y=0.55;g.add(s);}
  g.position.set((rand()-0.5)*3200,110+rand()*60,(rand()-0.5)*3200);scene.add(g);clouds.push(g);}
 
@@ -1176,9 +1177,9 @@ function renderGuns(){
  $('bcl').onclick=()=>{panel.hidden=true;paused=false;};
 }
 function renderPanel(){
- if(tab==='s'&&!(isCreator||isHelper))tab='m';
- if(tab==='m')renderMissions();else if(tab==='c')renderTune();else if(tab==='s')renderSpawn();else renderGuns();
- panel.insertAdjacentHTML('afterbegin','<div class="row"><button data-t="m">Mise</button><button data-t="g">Zbraně</button><button data-t="c">Tuning</button>'+((isCreator||isHelper)?'<button data-t="s">Auta</button>':'')+'<b style="margin-left:auto;align-self:center;color:#7dff9b">$ '+money+'</b></div>');
+ if((tab==='s'||tab==='d')&&!(isCreator||isHelper))tab='m';
+ if(tab==='m')renderMissions();else if(tab==='c')renderTune();else if(tab==='s')renderSpawn();else if(tab==='d')renderTime();else renderGuns();
+ panel.insertAdjacentHTML('afterbegin','<div class="row"><button data-t="m">Mise</button><button data-t="g">Zbraně</button><button data-t="c">Tuning</button>'+((isCreator||isHelper)?'<button data-t="s">Auta</button><button data-t="d">Čas</button>':'')+'<b style="margin-left:auto;align-self:center;color:#7dff9b">$ '+money+'</b></div>');
  panel.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;gmsg='';renderPanel();});
 }
 function togglePanel(t){
@@ -1703,13 +1704,89 @@ window.addEventListener('keydown',e=>{
 startMission(0);
 camPos.set(0,6,-48);look.set(0,2,-30);
 const godF=()=>{if(CH.god){hpP=100;if(drv&&car)car.hp=maxHp();}if(CH.rich&&money!==99999999){money=99999999;save();}};
+// ===== DENNÍ DOBA (jen Matýsek + Nazik): východ, ráno, poledne, odpoledne, západ, soumrak, noc =====
+// [hodina, nebe nahoře, nebe uprostřed, obzor, hemi nebe, hemi zem, hemi síla, barva slunce, síla slunce, expozice, hvězdy, mraky]
+const TOD_KF=[
+ [0,0x050a1c,0x0b1633,0x16233f,0x6f86cc,0x2a3450,0.5,0x8aa4ff,0.55,1.25,1,0x232c45],
+ [4.5,0x0a1330,0x1c2c58,0x3d4c7c,0x7a8fd0,0x2c3550,0.5,0x9ab0ff,0.5,1.25,0.9,0x2a3555],
+ [6,0x3d5f9f,0xe8a088,0xffc9a0,0xffd8b8,0x4a4a3a,0.46,0xffb27a,0.95,1.15,0.1,0xffcfae],
+ [9,0x3a78c0,0x78b0e0,0xcfe2f0,0xd8e8ff,0x5d6b45,0.55,0xfff0d6,1.2,1.15,0,0xffffff],
+ [12,0x2a68b4,0x62a2dc,0xbfd8ec,0xcfe3ff,0x5d6b45,0.6,0xffffff,1.35,1.15,0,0xffffff],
+ [16,0x2f6fb8,0x6aa6dc,0xc3d9ea,0xcfe3ff,0x5d6b45,0.55,0xffe8c2,1.25,1.15,0,0xffffff],
+ [18.8,0x3b4f8c,0xe0805a,0xffb070,0xffc9a0,0x4a3f35,0.44,0xff9a55,1.0,1.1,0.1,0xffb48c],
+ [20.2,0x141c40,0x3a3a72,0x8a5a7c,0x7a78b8,0x2a2838,0.4,0xc8a0c8,0.5,1.2,0.6,0x6a5a80],
+ [22,0x070d24,0x0f1a3a,0x1a2848,0x6f86cc,0x2a3450,0.5,0x8aa4ff,0.55,1.25,1,0x2a3350],
+ [24,0x050a1c,0x0b1633,0x16233f,0x6f86cc,0x2a3450,0.5,0x8aa4ff,0.55,1.25,1,0x232c45]
+];
+const TOD_P=[['🌅','Východ slunce',6],['🌤','Ráno',9],['☀️','Poledne',12],['🌇','Odpoledne',16],['🌆','Západ slunce',18.8],['🌃','Soumrak',20.2],['🌙','Noc',0]];
+const TOD_SPD=[0,0.04,0.16,0.4],TOD_SPN=['vypnuto','pomalu (den = 10 min)','středně (den = 2,5 min)','rychle (den = 1 min)'];
+const TOD={h:16,to:16,auto:0,dirty:true,sd:new V3(),md:new V3(),se:50,me:-40};
+const _tc=new THREE.Color(),_tc2=new THREE.Color();
+const stars=(function(){const n=700,pos=new Float32Array(n*3);
+ for(let i=0;i<n;i++){const u=Math.random()*2-1,a=Math.random()*Math.PI*2,r=Math.sqrt(1-u*u);pos[i*3]=Math.cos(a)*r*1100;pos[i*3+1]=Math.abs(u)*1100;pos[i*3+2]=Math.sin(a)*r*1100;}
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+ const p=new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:2.2,sizeAttenuation:false,transparent:true,opacity:0,fog:false,depthWrite:false}));
+ p.renderOrder=-1;p.frustumCulled=false;p.visible=false;scene.add(p);return p;})();
+const ss=(a,b,x)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);};
+const dirOf=(el,az,out)=>{const e=el*Math.PI/180,a=az*Math.PI/180;return out.set(Math.cos(e)*Math.sin(a),Math.sin(e),Math.cos(e)*Math.cos(a));};
+function todApply(h){
+ let i=0;while(i<TOD_KF.length-2&&h>=TOD_KF[i+1][0])i++;
+ const A=TOD_KF[i],B=TOD_KF[i+1],f=Math.max(0,Math.min(1,(h-A[0])/(B[0]-A[0])));
+ const N=k=>A[k]+(B[k]-A[k])*f,C=k=>_tc.setHex(A[k]).lerp(_tc2.setHex(B[k]),f);
+ // nebe (gradient) + mlha
+ if(SKYX){const g=SKYX.cv.getContext('2d'),gr=g.createLinearGradient(0,0,0,256);
+  gr.addColorStop(0,'#'+C(1).getHexString());gr.addColorStop(0.35,'#'+C(2).getHexString());const hz='#'+C(3).getHexString();gr.addColorStop(0.5,hz);gr.addColorStop(1,hz);
+  g.fillStyle=gr;g.fillRect(0,0,8,256);SKYX.tex.needsUpdate=true;}
+ C(3);scene.fog.color.copy(_tc);scene.background.copy(_tc);
+ // světla
+ C(4);hemi.color.copy(_tc);C(5);hemi.groundColor.copy(_tc);hemi.intensity=N(6);
+ C(7);sun.color.copy(_tc);sun.intensity=N(8);renderer.toneMappingExposure=N(9);
+ const st=N(10);stars.material.opacity=st;stars.visible=st>0.03;
+ C(11);CLM.forEach(m=>m.color.copy(_tc));
+ // poloha slunce / měsíce
+ const hh=h<5.5?h+24:h;let se,sa,me,ma;
+ if(hh<=19){const t=(hh-5.5)/13.5;se=78*Math.sin(Math.PI*t);sa=90-180*t;me=-40*Math.sin(Math.PI*t);ma=-90-180*t;}
+ else{const t=(hh-19)/10.5;se=-40*Math.sin(Math.PI*t);sa=-90-180*t;me=55*Math.sin(Math.PI*t);ma=90-180*t;}
+ TOD.se=se;TOD.me=me;dirOf(se,sa,TOD.sd);dirOf(me,ma,TOD.md);
+ const w=ss(-4,2,se),d=TOD.sd.clone().multiplyScalar(w).addScaledVector(TOD.md,1-w);
+ if(d.lengthSq()<1e-6)d.copy(TOD.sd);d.normalize();d.y=Math.max(d.y,0.2);d.normalize();SUNOFF.copy(d).multiplyScalar(200);
+ // kotouč slunce / měsíce
+ const moon=!(se>-2);sunBall.material.color.set(moon?0xe9efff:C(7).getHex());
+ sunBall.scale.setScalar(moon?0.8:1);
+ if(sunGlow){sunGlow.material.color.set(moon?0xaac0ff:0xffffff);sunGlow.material.opacity=moon?0.55:1;}
+}
+function todUpdate(dt){
+ if(TOD.auto){TOD.h=(TOD.h+dt*TOD_SPD[TOD.auto])%24;TOD.to=TOD.h;TOD.dirty=true;}
+ else{const dl=(TOD.to-TOD.h+24)%24;if(dl>0.001&&dl<23.999){TOD.h=(TOD.h+Math.min(dl,dt*14))%24;TOD.dirty=true;}else if(TOD.h!==TOD.to){TOD.h=TOD.to;TOD.dirty=true;}}
+ if(TOD.dirty){todApply(TOD.h);TOD.dirty=false;}
+ stars.position.copy(camera.position);
+ const vis=TOD.se>-2?TOD.sd:(TOD.me>-2?TOD.md:null);
+ sunBall.visible=!!vis;if(sunGlow)sunGlow.visible=!!vis;
+ if(vis){sunBall.position.copy(camera.position).addScaledVector(vis,450);if(sunGlow)sunGlow.position.copy(sunBall.position);}
+ const ck=document.getElementById('todclk');if(ck){const hh=Math.floor(TOD.h),mm=Math.floor((TOD.h-hh)*60);ck.textContent=hh+':'+String(mm).padStart(2,'0');}
+}
+function todReset(){TOD.auto=0;TOD.h=TOD.to=16;TOD.dirty=true;}
+function renderTime(){
+ panel.innerHTML='<h2>Denní doba</h2><div style="font-size:26px;margin:2px 0 8px"><b id="todclk">'+Math.floor(TOD.h)+':00</b></div>'+
+ '<div class="row" style="flex-wrap:wrap;gap:6px">'+TOD_P.map((q,i)=>'<button data-tp="'+i+'">'+q[0]+' '+q[1]+'</button>').join('')+'</div>'+
+ '<div style="margin:12px 0 4px;font-size:14px"><b>Posuvník času</b></div><input type="range" id="todsl" min="0" max="23.99" step="0.05" value="'+TOD.h.toFixed(2)+'" style="width:100%">'+
+ '<div class="row" style="margin-top:10px"><button id="todau">Plynutí času: '+TOD_SPN[TOD.auto]+'</button></div>'+
+ '<p style="font-size:12px;color:#ffd166">Platí jen u tebe (jen pro Matýska a Nazika).</p><div class="row"><button id="bcl">Zavřít</button></div>';
+ panel.querySelectorAll('[data-tp]').forEach(b=>b.onclick=()=>{const q=TOD_P[+b.dataset.tp];TOD.auto=0;TOD.to=q[2];renderTime();});
+ $('todsl').oninput=e=>{TOD.auto=0;TOD.h=TOD.to=+e.target.value;TOD.dirty=true;};
+ $('todau').onclick=()=>{TOD.auto=(TOD.auto+1)%TOD_SPD.length;TOD.to=TOD.h;renderTime();};
+ $('bcl').onclick=()=>{panel.hidden=true;paused=false;};
+}
+$('btod').addEventListener('pointerdown',e=>{e.preventDefault();togglePanel('d');});
+todApply(TOD.h);
+
 let last=performance.now(),time=0;
 function loop(now){
  requestAnimationFrame(loop);
  const dt=Math.min(0.033,(now-last)/1000);last=now;time+=dt;
  if(!paused){godF();if(drv)carPhysics(dt);godF();vehUpdate(dt);godF();shopUpdate();if(drv){}else{physics(dt/2);physics(dt/2);}missionUpdate(dt);combat(dt);}
  poseHero(dt);mpTick(now,dt);updateCamera(dt);animateWorld(dt,time);hud();drawOv();
- sun.target.position.copy(P.pos);sun.position.copy(P.pos).add(SUNOFF);
+ todUpdate(dt);sun.target.position.copy(P.pos);sun.position.copy(P.pos).add(SUNOFF);
  scene.getObjectByName('sky').position.copy(camera.position);
  renderer.render(scene,camera);
 }
@@ -1750,12 +1827,12 @@ function setSkin(owner,hp){
 function showLogin(){setSkin(false);Object.values(holds).forEach(x=>x.clear());$('st').hidden=true;rebind=null;curName='';$('panel').hidden=true;hk.hidden=true;paused=true;lp.value='';lerr.textContent='';loginEl.hidden=false;}
 function enter(creator,name,helper){
  isCreator=creator;isHelper=!!helper;curName=name;setSkin(creator,helper);Object.assign(CH,CH0);
- $('bhk').hidden=!(creator||helper);$('bspawn').hidden=!(creator||helper);if(!(creator||helper))removeM4();if(!creator)removeGTR();
+ $('bhk').hidden=!(creator||helper);$('bspawn').hidden=!(creator||helper);if(!(creator||helper))removeM4();if(!creator)removeGTR();$('btod').hidden=!(creator||helper);if(!(creator||helper))todReset();
  try{localStorage.setItem('rr3d_name',name);}catch(_){}
  loginEl.hidden=true;paused=false;lp.value='';if(homeId)respawn();mpConnect();
  toast(creator?'Přihlášen: '+name+' 👑 (Hack menu odemčeno)':'Ahoj, '+(name||'hráči')+'!');
 }
-function logout(){MP.pass='';MP.admin=false;$('bpl').hidden=true;if(MP.ws)MP.ws.close();isCreator=false;isHelper=false;Object.assign(CH,CH0);$('bhk').hidden=true;$('bspawn').hidden=true;removeM4();removeGTR();showLogin();}
+function logout(){MP.pass='';MP.admin=false;$('bpl').hidden=true;if(MP.ws)MP.ws.close();isCreator=false;isHelper=false;Object.assign(CH,CH0);$('bhk').hidden=true;$('bspawn').hidden=true;removeM4();removeGTR();$('btod').hidden=true;todReset();showLogin();}
 let fails=0,lockUntil=0;
 async function tryLogin(){
  const name=lu.value.trim(),now=Date.now();
