@@ -8,18 +8,17 @@ const WebSocket = require('ws');
 const PORT = Number(process.env.PORT || 8080);
 const GAME_FILE = path.join(__dirname, 'Rope_Runner_3D_Multiplayer.html');
 const server = http.createServer((req, res) => {
-  if (req.url === '/' || req.url === '/index.html') {
-  res.writeHead(200, {
-    'Content-Type': 'text/html; charset=utf-8'
-  });
-  fs.createReadStream(GAME_FILE)
-    .on('error', () => {
-      res.writeHead(404);
-      res.end('Game file not found');
-    })
-    .pipe(res);
-  return;
-}
+  const pathname = new URL(req.url, 'http://localhost').pathname;
+  console.log('Požadavek:', pathname);
+
+  if (pathname === '/' || pathname === '/index.html') {
+    fs.readFile(GAME_FILE, (err, data) => {
+      if (err) {
+        console.error('HTML soubor nenalezen:', err.message);
+        res.writeHead(404);
+        res.end('Game file not found');
+        return;
+      }
 
   res.writeHead(404); res.end('Not found');
 });
