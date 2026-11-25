@@ -123,7 +123,7 @@ body.wide #joy{pointer-events:auto;opacity:.85}
 <body>
 <div id="view"><canvas id="ov"></canvas>
  <div id="hudL"><div id="mt"></div><div id="mp"></div><div id="mpstatus" style="font-size:11px;color:#7dff9b">Offline</div><div id="mtime"></div><div id="mmoney"></div><div style="margin-top:4px;width:120px;height:8px;background:#0008;border-radius:4px;overflow:hidden"><div id="hpf" style="height:100%;width:100%;background:#e63946"></div></div><canvas id="mm" width="120" height="66" style="margin-top:5px;border-radius:6px;background:#0b1424cc;border:1px solid #fff3;display:block"></canvas></div>
- <div id="hudR"><button id="bmenu">Mise</button><button id="bgun">Zbraně</button><button id="bcar">Auto</button><button id="bspawn" hidden aria-label="Spawn aut">🚘</button><button id="bfly" hidden>✈️ Vzlet (T)</button><button id="btod" hidden aria-label="Denní doba">🌅</button><button id="bfs" aria-label="Celá obrazovka">⛶</button><button id="bhk" hidden>Hack</button><button id="bpl" hidden>Hráči</button><button id="bmap">🗺 Mapa</button><button id="bchat" aria-label="Chat">💬</button><button id="bst" aria-label="Nastavení">⚙</button><div id="arrowbox"><div id="arrow">▲</div><div id="adist"></div></div><div id="spd"></div></div>
+ <div id="hudR"><button id="bmenu">Mise</button><button id="bgun">Zbraně</button><button id="bcar">Auto</button><button id="bspawn" hidden aria-label="Spawn aut">🚘</button><button id="bfly" hidden>✈️ Vzlet (T)</button><button id="btod" hidden aria-label="Denní doba">🌅</button><button id="bfs" aria-label="Celá obrazovka">⛶</button><button id="bhk" hidden>Hack</button><button id="bpl" hidden>Hráči</button><button id="bmap">🗺 Mapa</button><button id="bchat" aria-label="Chat">💬</button><button id="bphone" aria-label="Mobil">📱</button><button id="bst" aria-label="Nastavení">⚙</button><div id="arrowbox"><div id="arrow">▲</div><div id="adist"></div></div><div id="spd"></div></div>
  <div id="toast"></div><div id="chatlog"></div>
  <div id="chat" hidden><div class="cq" id="cq"></div><div class="cin"><input id="ci" maxlength="100" placeholder="Napiš zprávu…" autocomplete="off"><button id="csend">Poslat</button><button id="cx">✕</button></div></div>
  <div id="panel" hidden></div><div id="hk" hidden></div><div id="adm" hidden></div><div id="st" hidden></div>
@@ -156,7 +156,7 @@ try{const sv0=JSON.parse(localStorage.getItem('rr3d')||'null');if(sv0&&sv0.t)Obj
 try{const sv=JSON.parse(localStorage.getItem('rr3d')||'null');if(sv){money=sv.m|0;owned=sv.o||owned;equipped=sv.e||equipped;}}catch(_){}
 const SESS={money:0,weapons:[],skin:null,aim:false};
 function save(){try{localStorage.setItem('rr3d',JSON.stringify({m:Math.max(0,money-SESS.money),o:owned.filter(x=>!SESS.weapons.includes(x)),e:SESS.weapons.includes(equipped)?'fist':equipped,t:TUNE}));}catch(_){}}
-function addMoney(n){money=(typeof CH!=='undefined'&&CH.rich)?99999999:money+n;save();}
+var PHX=[];function addMoney(n){money=(typeof CH!=='undefined'&&CH.rich)?99999999:money+n;try{if(n){PHX.push([Date.now(),n,n>0?'Příjem':'Výdaj']);if(PHX.length>40)PHX.shift();}}catch(_){}save();}
 
 const view=$('view');
 const renderer=new THREE.WebGLRenderer({antialias:true});
@@ -621,13 +621,14 @@ const holds={l:new Set(),r:new Set(),rope:new Set(),f:new Set(),b:new Set(),aim:
 const SKINS={gold:{n:'Zlatý',suit:0xc99a00,emi:0x3a2a00,gold:0xffffff,dark:0x2a1a00},neon:{n:'Neon',suit:0x00e676,emi:0x003d1f,gold:0xff2bd6,dark:0x001a10},lava:{n:'Láva',suit:0xff4500,emi:0x4a1200,gold:0xffd000,dark:0x1a0600},ice:{n:'Led',suit:0x8fe3ff,emi:0x10303a,gold:0xffffff,dark:0x16394d},ghost:{n:'Duch',suit:0xe8e8f0,emi:0x303040,gold:0x9aa0ff,dark:0x55556a},owner:{n:'Creator',suit:0x3a1478,emi:0x1c0a40,gold:0x35e0ff,dark:0x07050f,crown:true}};
 const SKIN_DEF={suit:0x2ec4b6,emi:0x000000,gold:0xffd166,dark:0x0e1a2e};
 function paint(h,s){const m=h.mats;m.suit.color.set(s.suit);m.suit.emissive.set(s.emi);m.gold.color.set(s.gold);m.gold.emissive.set(0);m.dark.color.set(s.dark);h.crown.visible=!!s.crown;}
-function clearGrants(){
+let canDrive=true,banW=0;
+function clearGrants(){canDrive=true;
  money=Math.max(0,money-SESS.money);owned=owned.filter(x=>!SESS.weapons.includes(x));if(!owned.includes(equipped))equipped='fist';equip();
  if(SESS.aim)CH.aim=false;
  SESS.money=0;SESS.weapons=[];SESS.aim=false;if(SESS.skin){SESS.skin=null;setSkin(isCreator,isHelper);}
  save();
 }
-function applyGrant(m){
+function applyGrant(m){if(m.kind==='drive'){canDrive=!!m.value;toast(canDrive?'Matýsek ti povolil řízení 🚗':'Matýsek ti zakázal řízení 🚫',2800);return;}
  if(m.kind==='money'){const v=Math.floor(Number(m.value));if(!(v>0))return;money+=v;SESS.money+=v;toast('Matýsek ti dal $'+v,2500);}
  else if(m.kind==='weapon'){const w=WEAPONS.find(x=>x.id===m.value);if(!w)return;if(!owned.includes(w.id)){owned.push(w.id);SESS.weapons.push(w.id);}equipped=w.id;equip();toast('Dostal jsi zbraň: '+w.name,2500);}
  else if(m.kind==='aim'){SESS.aim=!!m.value;CH.aim=SESS.aim;if(SESS.aim)CH.act='Vždy';toast(SESS.aim?'Aimbot zapnut (do odpojení)':'Aimbot vypnut',2500);}
@@ -639,6 +640,10 @@ function applyTitle(o,g,t){const k=t&&t.text?t.text+'|'+t.color:'';if(o.tk===k)r
  if(!k)return;const cv=document.createElement('canvas');cv.width=320;cv.height=80;const c=cv.getContext('2d');
  c.font='bold 44px sans-serif';c.textAlign='center';c.textBaseline='middle';c.lineJoin='round';c.lineWidth=8;c.strokeStyle='rgba(0,0,0,.8)';c.strokeText(t.text,160,40);c.fillStyle=t.color;c.fillText(t.text,160,40);
  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true,depthTest:false}));sp.scale.set(4,1,1);sp.position.y=3;sp.renderOrder=10;g.add(sp);o.ts=sp;}
+const driveUI=(id,q)=>{const on=id==='all'?null:!q.nodrive;
+ return '<div class="hi" style="flex-direction:row;flex-wrap:wrap;margin-top:4px">'+(id==='all'
+ ?'<button data-dr="all" data-v="1">🚗 Řízení všem: ON</button><button data-dr="all" data-v="0">🚫 Řízení všem: OFF</button>'
+ :'<button data-dr="'+id+'" data-v="'+(on?0:1)+'" style="border:2px solid '+(on?'#4ee08a':'#ff4d4d')+'">🚗 Řízení: '+(on?'ON':'OFF')+'</button>')+'</div>';};
 const TCOL=[['Růžová','#ff4fd8'],['Azurová','#35e0ff'],['Zlatá','#ffd166'],['Červená','#ff4d4d'],['Zelená','#4ee08a'],['Fialová','#a56bff']];
 const titleUI=id=>'<div class="hi" style="flex-direction:row;flex-wrap:wrap;margin-top:4px"><input data-tt="'+id+'" value="furry" maxlength="24" style="width:90px"><select data-tc="'+id+'">'+TCOL.map(c=>'<option value="'+c[1]+'">'+c[0]+'</option>').join('')+'</select><button data-gt="'+id+'">🏷 Dát titul</button><button data-rt="'+id+'">✕ Odebrat titul</button></div>';
 const adm=$('adm');
@@ -651,7 +656,7 @@ function renderAdm(){
   +'<select data-w="'+id+'">'+WEAPONS.filter(w=>w.id!=='fist').map(w=>'<option value="'+w.id+'">'+w.name+'</option>').join('')+'</select><button data-gw="'+id+'">Dát zbraň</button>'
   +'<button data-g="aim" data-v="1" data-id="'+id+'">Aimbot ON</button><button data-g="aim" data-v="0" data-id="'+id+'">Aimbot OFF</button>'
   +'<select data-s="'+id+'"><option value="">bez skinu</option>'+Object.keys(SKINS).filter(k=>k!=='owner').map(k=>'<option value="'+k+'">'+SKINS[k].n+'</option>').join('')+'</select><button data-gs="'+id+'">Dát skin</button>'
-  +(id==='all'?'':titleUI(id))+'</div></div>').join('');
+  +driveUI(id,q)+(id==='all'?'':titleUI(id))+'</div></div>').join('');
  const send=(to,kind,value)=>{if(MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify({type:'grant',to,kind,value}));};
  adm.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{const k=b.dataset.g;send(b.dataset.id,k,k==='aim'?b.dataset.v==='1':+b.dataset.v);});
  adm.querySelectorAll('[data-gw]').forEach(b=>b.onclick=()=>send(b.dataset.gw,'weapon',adm.querySelector('[data-w="'+b.dataset.gw+'"]').value));
@@ -659,6 +664,7 @@ function renderAdm(){
  const sendT=(id,text)=>{if(MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify({type:'title',to:id,text,color:adm.querySelector('[data-tc="'+id+'"]').value}));};
  adm.querySelectorAll('[data-gt]').forEach(b=>b.onclick=()=>{const v=adm.querySelector('[data-tt="'+b.dataset.gt+'"]').value.trim();if(v){sendT(b.dataset.gt,v);toast('Titul odeslán',1200);}});
  adm.querySelectorAll('[data-rt]').forEach(b=>b.onclick=()=>{sendT(b.dataset.rt,'');toast('Titul odebrán',1200);});
+ adm.querySelectorAll('[data-dr]').forEach(b=>b.onclick=()=>{const id=b.dataset.dr,on=b.dataset.v==='1';send(id,'drive',on);if(id==='all')MP.players.forEach(q=>q.nodrive=!on);else{const q=MP.players.get(id);if(q)q.nodrive=!on;}setTimeout(()=>{if(!adm.hidden)renderAdm();},250);});
  $('ax').onclick=toggleAdm;
 }
 function toggleAdm(){if(!MP.admin){adm.hidden=true;return;}if(adm.hidden){Object.values(holds).forEach(x=>x.clear());$('panel').hidden=true;hk.hidden=true;renderAdm();adm.hidden=false;paused=true;}else{adm.hidden=true;paused=false;}}
@@ -679,6 +685,7 @@ function mpConnect(){
    if(m.type==='chat'){chatAdd(m);return;}
    if(m.type==='grant'){applyGrant(m);return;}
    if(m.type==='ride'){if(m.ok){RIDE={id:String(m.id),seat:+m.seat||1,cap:+m.cap||4};P.rope=null;T.dur=0;toast('Nastoupil jsi jako spolujezdec 👥 ('+(+m.seat+1||2)+'/'+RIDE.cap+') · Auto / G = vystoupit',2800);}else rideEnd(m.reason);return;}
+   if(m.type==='pay'||m.type==='payok'||m.type==='payfail'){if(window.phoneMsg)phoneMsg(m);return;}
    if(m.type==='admin'&&m.ok){MP.admin=true;$('bpl').hidden=false;toast('Admin práva na hráče aktivní',2000);return;}
    if(m.type==='snapshot'&&Array.isArray(m.players)){
     const seen=new Set();
@@ -688,7 +695,7 @@ function mpConnect(){
       const tex=new THREE.CanvasTexture(cv),spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));spr.scale.set(3.2,.8,1);spr.position.y=2.2;model.g.add(spr);
       q={model,target:new V3(),yaw:0,name:p.name||'Hráč'};MP.players.set(p.id,q);
      }
-     applyTitle(q,q.model.g,p.title);const sk=p.skin||(p.role==='creator'?'owner':null);if(q.skin!==sk){q.skin=sk;paint(q.model,sk&&SKINS[sk]?SKINS[sk]:SKIN_DEF);}
+     q.nodrive=!!p.nodrive;applyTitle(q,q.model.g,p.title);const sk=p.skin||(p.role==='creator'?'owner':null);if(q.skin!==sk){q.skin=sk;paint(q.model,sk&&SKINS[sk]?SKINS[sk]:SKIN_DEF);}
      if(Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.z)){q.target.set(p.x,p.y,p.z);q.yaw=Number(p.yaw)||0;}
      q.veh=(p.veh&&typeof p.veh==='object'&&typeof p.veh.k==='string')?{k:String(p.veh.k),c:(Number(p.veh.c)>>>0)&0xffffff,pt:Math.max(-1,Math.min(1,Number(p.veh.pt)||0))}:null;q.ride=p.ride?String(p.ride):null;
     }
@@ -700,9 +707,63 @@ function mpConnect(){
  }catch(_){mpStatus('Nelze se připojit');}
 }
 
+var PHL=[];
+/* ===== Mobil 📱 ===== */
+(function(){
+ const st=document.createElement('style');st.textContent=`#phone{position:absolute;right:10px;bottom:10px;width:min(290px,92vw);height:min(540px,94%);z-index:23;border-radius:32px;background:#080c18;border:6px solid #232a40;box-shadow:0 10px 40px #000a;display:flex;flex-direction:column;overflow:hidden;color:#fff;font:13px sans-serif}#phone[hidden]{display:none}
+#phb{display:flex;justify-content:space-between;padding:8px 18px 4px;font-size:12px;opacity:.85}#phs{flex:1;min-height:0;overflow:auto;padding:6px 12px;display:flex;flex-direction:column}#phn{display:flex;gap:6px;padding:6px 10px;border-top:1px solid #fff2}#phn button{flex:1}
+#phone button{background:#1b2540;color:#fff;border:1px solid #fff3;border-radius:12px;padding:8px;font:inherit}#phone input,#phone select{background:#101830;color:#fff;border:1px solid #fff3;border-radius:8px;padding:7px;font:inherit;width:100%;box-sizing:border-box;margin:3px 0}
+.pha{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}.pha button{aspect-ratio:1;font-size:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}.pha small{font-size:10px}
+.phm{padding:3px 0;border-bottom:1px solid #fff1;word-break:break-word}`;document.head.appendChild(st);
+ const ph=document.createElement('div');ph.id='phone';ph.hidden=true;$('view').appendChild(ph);
+ const E=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),fm=n=>String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,' ');
+ const clk=()=>{const h=Math.floor(TOD.h),m=Math.floor((TOD.h-h)*60);return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');};
+ const WC=[['☀️','Slunečno'],['⛅','Polojasno'],['☁️','Zataženo'],['🌦','Přeháňky'],['⛈','Bouřky']];
+ const wxAt=(h,off)=>{let x=Math.sin((Math.floor(Date.now()/1800000)+off)*12.9898)*43758.5453;x-=Math.floor(x);const ci=x<0.4?0:x<0.65?1:x<0.85?2:x<0.95?3:4;return{ci,t:Math.round(11+8*Math.sin((h-9)/24*Math.PI*2)-(ci>=3?3:ci===2?1.5:0))};};
+ const APPS=[['bank','🏦','Banka'],['chat','💬','Chat'],['wx','🌦','Počasí'],['map','🗺','Mapa'],['pl','👥','Hráči']];
+ let app='home',pend=[],note='',iv=0;
+ const logHtml=()=>PHL.slice(-40).map(m=>'<div class="phm"><b style="color:'+(m[2]==='creator'?'#35e0ff':'#ffd166')+'">'+E(m[0])+':</b> '+E(m[1])+'</div>').join('')||'<div style="opacity:.6">Zatím žádné zprávy.</div>';
+ function body(){
+  if(app==='home'){const w=wxAt(TOD.h,0);return '<div style="text-align:center;margin-top:6px"><div style="font-size:44px;font-weight:300">'+clk()+'</div><div style="opacity:.7">'+WC[w.ci][0]+' '+w.t+' °C · '+WC[w.ci][1]+'</div></div><div class="pha">'+APPS.map(a=>'<button data-a="'+a[0]+'">'+a[1]+'<small>'+a[2]+'</small></button>').join('')+'</div>';}
+  if(app==='bank'){
+   const opts=[...MP.players.entries()].map(([id,q])=>'<option value="'+id+'">'+E(q.name)+'</option>').join('');
+   const tx=PHX.slice(-8).reverse().map(t=>'<div class="phm" style="display:flex;justify-content:space-between"><span>'+E(t[2])+'</span><b style="color:'+(t[1]>0?'#7dff9b':'#ff7a7a')+'">'+(t[1]>0?'+':'−')+'$'+fm(Math.abs(t[1]))+'</b></div>').join('')||'<div style="opacity:.6">Zatím žádné pohyby.</div>';
+   return '<h3 style="margin:4px 0">🏦 Banka</h3><div style="background:#12306a;border-radius:14px;padding:12px"><div style="opacity:.7;font-size:11px">Zůstatek</div><div style="font-size:26px;font-weight:700">$ '+fm(money)+'</div></div><div style="margin:10px 0 4px;font-weight:700">Poslat peníze</div>'+(opts?'<select id="phto">'+opts+'</select><input id="pham" type="number" min="1" placeholder="Částka ($)"><button id="phsend" style="width:100%">Odeslat</button>':'<div style="opacity:.6">Nikdo jiný není online.</div>')+'<div style="color:#ffd166;min-height:16px;margin:4px 0">'+E(note)+'</div><div style="font-weight:700;margin-bottom:2px">Poslední pohyby</div>'+tx;}
+  if(app==='chat')return '<h3 style="margin:4px 0">💬 Skupinový chat</h3><div id="phlog" style="flex:1;overflow:auto;min-height:0">'+logHtml()+'</div><div style="display:flex;gap:4px;margin-top:6px"><input id="phci" maxlength="100" placeholder="Napiš zprávu…" style="margin:0"><button id="phcs">➤</button></div>';
+  if(app==='wx'){const w=wxAt(TOD.h,0),fc=[1,2,3,4,5,6].map(k=>{const h=(TOD.h+k*2)%24,x=wxAt(h,Math.floor(k/3));return '<div style="text-align:center;flex:1"><div style="opacity:.7;font-size:11px">'+String(Math.floor(h)).padStart(2,'0')+':00</div><div style="font-size:20px">'+WC[x.ci][0]+'</div><div>'+x.t+'°</div></div>';}).join('');
+   return '<h3 style="margin:4px 0">🌦 Počasí</h3><div style="text-align:center"><div style="font-size:54px">'+WC[w.ci][0]+'</div><div style="font-size:34px;font-weight:300">'+w.t+' °C</div><div style="opacity:.75">'+WC[w.ci][1]+' · herní čas '+clk()+'</div></div><div style="display:flex;gap:2px;margin-top:14px;background:#12306a55;border-radius:12px;padding:8px">'+fc+'</div>';}
+  const l=[...MP.players.values()].map(q=>{const g=q.model.g.position,d=Math.round(Math.hypot(g.x-P.pos.x,g.z-P.pos.z));return '<div class="phm" style="display:flex;justify-content:space-between"><span>'+(q.veh?'🚗 ':'🚶 ')+E(q.name)+'</span><span style="opacity:.7">'+d+' m</span></div>';}).join('');
+  return '<h3 style="margin:4px 0">👥 Hráči online</h3><div class="phm"><b>'+E(curName||'Já')+'</b> (ty)</div>'+(l||'<div style="opacity:.6;margin-top:6px">Nikdo jiný není online.</div>');
+ }
+ function render(){
+  ph.innerHTML='<div id="phb"><span id="phclk">'+clk()+'</span><span>'+(MP.connected?'📶 Online':'📵 Offline')+' 🔋</span></div><div id="phs">'+body()+'</div><div id="phn"><button id="phh">⌂ Domů</button><button id="phx">✕ Zavřít</button></div>';
+  ph.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>go(b.dataset.a));
+  $('phh').onclick=()=>go('home');$('phx').onclick=close;
+  const s=$('phsend');if(s)s.onclick=send;
+  const cs=$('phcs');if(cs){const ci=$('phci'),sd=()=>{const t=ci.value.trim();if(t){chatSend(t);ci.value='';}};cs.onclick=sd;ci.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();sd();}};const lg=$('phlog');lg.scrollTop=lg.scrollHeight;}
+ }
+ function go(a){if(a==='map'){close();openMap();return;}app=a;note='';render();}
+ function send(){const to=$('phto').value,a=Math.floor(+$('pham').value);
+  if(!to)note='Vyber hráče.';else if(!(a>=1&&a<=1000000))note='Zadej částku 1 – 1 000 000.';else if(money<a)note='Nemáš dost peněz.';else if(!(MP.ws&&MP.ws.readyState===1))note='Jsi offline.';
+  else{money-=a;save();pend.push(a);PHX.push([Date.now(),-a,'Převod → '+((MP.players.get(to)||{}).name||'?')]);MP.ws.send(JSON.stringify({type:'pay',to,amount:a}));note='Odesláno ✓';}
+  render();}
+ function open(){if(!$('login').hidden||!$('chat').hidden||!$('panel').hidden||!$('hk').hidden||!$('adm').hidden||!$('st').hidden||!MAPP.hidden)return;
+  Object.values(holds).forEach(x=>x.clear());app='home';note='';render();ph.hidden=false;paused=true;clearInterval(iv);iv=setInterval(()=>{const c=$('phclk');if(c)c.textContent=clk();},1000);}
+ function close(){if(ph.hidden)return;ph.hidden=true;paused=false;clearInterval(iv);}
+ window.phoneToggle=()=>ph.hidden?open():close();
+ window.phoneRefresh=()=>{if(ph.hidden||app!=='chat')return;const lg=$('phlog');if(lg){lg.innerHTML=logHtml();lg.scrollTop=lg.scrollHeight;}};
+ window.phoneMsg=m=>{
+  if(m.type==='pay'){const a=Math.floor(+m.amount)||0;if(a<1)return;money+=a;PHX.push([Date.now(),a,'Převod od '+String(m.from||'?').slice(0,20)]);save();toast('📱 '+String(m.from||'Někdo')+' ti poslal $'+fm(a),3200);}
+  else if(m.type==='payok'){pend.shift();toast('📱 Odesláno $'+fm(m.amount)+' → '+String(m.to||'').slice(0,20),2500);}
+  else{const a=pend.shift()||0;if(a){money+=a;PHX.push([Date.now(),a,'Vráceno (převod selhal)']);save();}toast('📱 Převod se nepovedl – peníze vráceny',2800);}
+  if(!ph.hidden&&app==='bank')render();};
+ $('bphone').addEventListener('click',()=>phoneToggle());
+ window.addEventListener('keydown',e=>{if(e.code==='Escape'&&!ph.hidden){close();return;}if(e.target&&e.target.tagName==='INPUT')return;if(e.code==='KeyP'&&$('login').hidden&&!rebind){e.preventDefault();phoneToggle();}});
+})();
+
 /* ===== Chat ===== */
 const QUICK=['Ahoj! 👋','Pojďte sem!','Pomoc!','Půjdeme na misi?','Pozor!','Díky!','Dobrá hra 👍','Haha 😂'];
-function chatAdd(m){
+function chatAdd(m){if(m&&typeof m.text==='string'){PHL.push([String(m.name||'Hráč').slice(0,20),m.text.slice(0,100),m.role||null]);if(PHL.length>60)PHL.shift();if(window.phoneRefresh)phoneRefresh();}
  const box=$('chatlog');if(!box||typeof m.text!=='string')return;
  const d=document.createElement('div'),b=document.createElement('b');
  if(m.role==='creator')b.className='cr';
@@ -1287,6 +1348,7 @@ function toggleCar(){
  if(paused||GAR.ph)return;if(RIDE){rideLeave();return;}if(drv){exitCar();return;}
  {const nr=nearRemote(),ld=nearV?Math.hypot(P.pos.x-nearV.x,P.pos.z-nearV.z):1e9;if(nr&&nr.d<ld){rideBoard(nr.id);return;}}
  if(!nearV){toast('Jdi blíž k autu (do 9 m) a stiskni Auto / G.',2000);return;}
+ if(!canDrive){toast('Řízení ti zakázal Matýsek 🚫',2200);return;}
  const v=nearV;toast(v.mode==='npc'?'Ukradl jsi auto! 🚗':'W/S plyn · A/D zatáčení · LANO = ruční brzda · Auto = vystoupit',2400);
  car=v;carG=v.g;v.mode='player';drv=true;hero.g.visible=false;P.rope=null;T.dur=0;if(v.cop&&!WANT.on){toast('Ukradl jsi policejní auto! 🚨',2200);setWanted(true);}
 }
@@ -1334,6 +1396,13 @@ function shopUpdate(){const px=drv?car.x:P.pos.x,pz=drv?car.z:P.pos.z;
   if(!GAR.ph&&GAR.armed){if(drv&&car&&!car.fly)garStart();else toast('Tuning garáž 🔧 – přijeď autem.',2800);}}}
  else{SHOP.inside=false;if(!GAR.ph)GAR.armed=true;}}
 const ease=t=>t<0?0:t>1?1:t*t*(3-2*t);
+function banDrive(dt){
+ if(canDrive||!drv||!car){banW=0;return;}
+ if(!banW){banW=1;toast('Řízení ti bylo zakázáno 🚫 – auto zastaví a vyhodí tě.',3000);}
+ if(car.gtr&&car.fly)car.fly=false;
+ car.sp*=Math.max(0,1-3*dt);
+ if(Math.abs(car.sp)<1&&!(car.y>0.2)){exitCar();toast('Vyhozen z auta 🚫 – nemáš povolené řízení.',2600);}
+}
 function garShut(o){const s=GAR.sh;if(!s)return;s.scale.y=Math.max(0.02,1-o);s.position.y=4.2-2.1*s.scale.y;}
 function garPose(px,pz,yaw){car.x=px;car.z=pz;car.yaw=yaw;car.sp=0;carG.position.set(px,0,pz);carG.rotation.y=yaw;P.pos.set(px,0.92,pz);P.vel.set(0,0,0);}
 function garStart(){GAR.ph=1;GAR.t=0;GAR.armed=false;GAR.car=car;GAR.s={x:car.x,z:car.z,y:car.yaw};Object.values(holds).forEach(h=>h.clear());toast('Vjíždíš do garáže 🔧',1500);}
@@ -1382,7 +1451,7 @@ function crash(v){
  if(car.hp<=0){const c=Math.min(money,150);addMoney(-c);car.hp=maxHp();car.sp=0;toast('Auto je rozbité – oprava'+(c?' $'+c:'')+'.',2200);}
 }
 function carPhysics1(dt){
- const en=car.own?TUNE.engine:0,sp_=car.own?TUNE.spoiler:0,maxS=car.gtr?114:car.bmw?74:32+en*10,acc=car.gtr?50:car.bmw?34:14+en*5,fw=holds.f.size>0,bk=holds.b.size>0,st=(holds.r.size>0?1:0)-(holds.l.size>0?1:0);
+ const en=car.own?TUNE.engine:0,sp_=car.own?TUNE.spoiler:0,maxS=car.gtr?114:car.bmw?74:32+en*10,acc=car.gtr?50:car.bmw?34:14+en*5,fw=canDrive&&holds.f.size>0,bk=canDrive&&holds.b.size>0,st=(holds.r.size>0?1:0)-(holds.l.size>0?1:0);
  car.cd-=dt;
  if(fw)car.sp+=(car.sp<0?40:acc*Math.max(0.05,1-car.sp/(maxS*1.05)))*dt;
  else if(bk){car.sp-=(car.sp>0.5?36:12)*dt;if(car.sp<-10)car.sp=-10;}
@@ -1874,7 +1943,7 @@ let last=performance.now(),time=0;
 function loop(now){
  requestAnimationFrame(loop);
  const dt=Math.min(0.033,(now-last)/1000);last=now;time+=dt;
- if(!paused){godF();if(drv&&!GAR.ph)carPhysics(dt);godF();vehUpdate(dt);godF();shopUpdate();if(drv||RIDE){}else{physics(dt/2);physics(dt/2);}missionUpdate(dt);combat(dt);}
+ if(!paused){godF();if(drv&&!GAR.ph){carPhysics(dt);banDrive(dt);}godF();vehUpdate(dt);godF();shopUpdate();if(drv||RIDE){}else{physics(dt/2);physics(dt/2);}missionUpdate(dt);combat(dt);}
  garUpdate(dt);poseHero(dt);mpTick(now,dt);updateCamera(dt);animateWorld(dt,time);hud();drawOv();
  todUpdate(dt);sun.target.position.copy(P.pos);sun.position.copy(P.pos).add(SUNOFF);
  scene.getObjectByName('sky').position.copy(camera.position);

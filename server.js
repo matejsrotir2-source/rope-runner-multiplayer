@@ -19,6 +19,7 @@ const TITLES_FILE = path.join(__dirname, 'titles.json');
 let TITLES = {};
 try { TITLES = JSON.parse(fs.readFileSync(TITLES_FILE, 'utf8')) || {}; } catch {}
 const saveTitles = () => { try { fs.writeFileSync(TITLES_FILE, JSON.stringify(TITLES)); } catch (e) { console.error('titles.json:', e.message); } };
+const NODRIVE = new Set(); // jména hráčů se zakázaným řízením (do restartu serveru)
 const titleKey = n => String(n || '').toLowerCase();
 
 const server = http.createServer((req, res) => {
@@ -111,7 +112,7 @@ function broadcast() {
           x: src.x,
           y: src.y,
           z: src.z,
-          yaw: src.yaw, skin: other.skin || null, role: other.role || null, title: other.title || null
+          yaw: src.yaw, skin: other.skin || null, role: other.role || null, title: other.title || null, nodrive: !!other.noDrive
         };
         if (rideId) {
           entry.ride = rideId;
@@ -164,6 +165,8 @@ wss.on('connection', ws => {
 
       p.room = String(m.room || 'sidliste').slice(0, 32);
       p.title = TITLES[titleKey(p.name)] || null;
+      p.noDrive = NODRIVE.has(titleKey(p.name));
+      if (p.noDrive) sendTo(ws, { type: 'grant', kind: 'drive', value: false });
       broadcast();
 
     } else if (m.type === 'auth' && p.joined) {
@@ -192,7 +195,7 @@ wss.on('connection', ws => {
         if (!Number.isFinite(value) || value < 1 || value > 1000000) return;
       } else if (kind === 'weapon') {
         if (!WEAPON_IDS.includes(value)) return;
-      } else if (kind === 'aim') {
+      } else if (kind === 'aim' || kind === 'drive') {
         value = !!value;
       } else if (kind === 'skin') {
         if (value !== null && !SKIN_IDS.includes(value)) return;
@@ -204,11 +207,29 @@ wss.on('connection', ws => {
         if (!t.joined || t === p || t.room !== p.room) continue;
         if (String(m.to) !== 'all' && t.id !== String(m.to)) continue;
         if (kind === 'skin') t.skin = value;
+        if (kind === 'drive') { t.noDrive = !value; if (value) NODRIVE.delete(titleKey(t.name)); else NODRIVE.add(titleKey(t.name)); }
         if (tws.readyState === WebSocket.OPEN) {
           tws.send(JSON.stringify({ type: 'grant', kind, value }));
         }
       }
       broadcast();
+
+    } else if (m.type === 'pay' && p.joined) {
+      // převod peněz mezi hráči z mobilu (stejná místnost, max $1 000 000, 1× za sekundu)
+      const amt = Math.floor(Number(m.amount));
+      const now = Date.now();
+      if (!Number.isFinite(amt) || amt < 1 || amt > 1000000 || now - (p.lastPay || 0) < 1000) { sendTo(ws, { type: 'payfail' }); return; }
+      p.lastPay = now;
+      let sent = false;
+      for (const [tws, t] of clients) {
+        if (t.joined && t !== p && t.id === String(m.to) && t.room === p.room) {
+          sendTo(tws, { type: 'pay', from: p.name, amount: amt });
+          sendTo(ws, { type: 'payok', to: t.name, amount: amt });
+          sent = true;
+          break;
+        }
+      }
+      if (!sent) sendTo(ws, { type: 'payfail' });
 
     } else if (m.type === 'title' && p.admin) {
       const text = String(m.text || '').replace(/[<>]/g, '').trim().slice(0, 24);
