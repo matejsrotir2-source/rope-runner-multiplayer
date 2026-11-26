@@ -70,7 +70,7 @@ let nextId = 1;
 const clients = new Map();
 
 // ===== Spolujízda: do každého auta se vejdou 4 lidé (včetně řidiče), do G-Wagonu 6, do GT-R jen 2 =====
-const VEH_KINDS = ['std', 'm4', 'gtr', 'gw', 'gle', 'sc'];
+const VEH_KINDS = ['std', 'm4', 'gtr', 'gw', 'gle', 'sc', 'heli'];
 const seatCap = d => (d.veh && d.veh.k === 'gtr') ? 2 : (d.veh && d.veh.k === 'gw') ? 6 : 4;
 
 function sendTo(ws, obj) {
