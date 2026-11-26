@@ -112,7 +112,7 @@ function broadcast() {
           x: src.x,
           y: src.y,
           z: src.z,
-          yaw: src.yaw, skin: other.skin || null, role: other.role || null, title: other.title || null, nodrive: !!other.noDrive, gtrok: !!(other.gtrOk || other.admin)
+          yaw: src.yaw, skin: other.skin || other.mySkin || null, role: other.role || null, title: other.title || null, nodrive: !!other.noDrive, gtrok: !!(other.gtrOk || other.admin)
         };
         if (rideId) {
           entry.ride = rideId;
@@ -172,7 +172,7 @@ wss.on('connection', ws => {
 
     } else if (m.type === 'auth' && p.joined) {
       p.authFails = p.authFails || 0;
-      if (p.authFails >= 5) return;
+      if (p.authFails >= 5) { sendTo(ws, { type: 'admin', ok: false }); return; }
 
       const n = String(m.name || '').toLowerCase();
       const h = crypto.createHash('sha256').update(n + ':' + String(m.pass || '')).digest('hex');
@@ -185,7 +185,15 @@ wss.on('connection', ws => {
         broadcast();
       } else {
         p.authFails++;
+        sendTo(ws, { type: 'admin', ok: false });
       }
+
+    } else if (m.type === 'myskin' && p.joined) {
+      // vlastní skin – může si ho změnit kdokoli (jen běžné skiny, ne creator/developer)
+      const v = m.value === null || m.value === undefined || m.value === '' ? null : String(m.value);
+      if (v !== null && !SKIN_IDS.includes(v)) return;
+      p.mySkin = v;
+      broadcast();
 
     } else if (m.type === 'grant' && p.admin) {
       const kind = m.kind;

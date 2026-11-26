@@ -123,7 +123,7 @@ body.wide #joy{pointer-events:auto;opacity:.85}
 <body>
 <div id="view"><canvas id="ov"></canvas>
  <div id="hudL"><div id="mt"></div><div id="mp"></div><div id="mpstatus" style="font-size:11px;color:#7dff9b">Offline</div><div id="mtime"></div><div id="mmoney"></div><div style="margin-top:4px;width:120px;height:8px;background:#0008;border-radius:4px;overflow:hidden"><div id="hpf" style="height:100%;width:100%;background:#e63946"></div></div><canvas id="mm" width="120" height="66" style="margin-top:5px;border-radius:6px;background:#0b1424cc;border:1px solid #fff3;display:block"></canvas></div>
- <div id="hudR"><button id="bmenu">Mise</button><button id="bgun">Zbraně</button><button id="bcar">Auto</button><button id="bspawn" hidden aria-label="Spawn aut">🚘</button><button id="bfly" hidden>✈️ Vzlet (T)</button><button id="btod" hidden aria-label="Denní doba">🌅</button><button id="bfs" aria-label="Celá obrazovka">⛶</button><button id="bhk" hidden>Hack</button><button id="bpl" hidden>Hráči</button><button id="bmap">🗺 Mapa</button><button id="bchat" aria-label="Chat">💬</button><button id="bphone" aria-label="Mobil">📱</button><button id="bst" aria-label="Nastavení">⚙</button><div id="arrowbox"><div id="arrow">▲</div><div id="adist"></div></div><div id="spd"></div></div>
+ <div id="hudR"><button id="bmenu">Mise</button><button id="bgun">Zbraně</button><button id="bcar">Auto</button><button id="bspawn" hidden aria-label="Spawn aut">🚘</button><button id="bfly" hidden>✈️ Vzlet (T)</button><button id="btod" hidden aria-label="Denní doba">🌅</button><button id="bfs" aria-label="Celá obrazovka">⛶</button><button id="bhk" hidden>Hack</button><button id="bpl" hidden>🛡 Správa</button><button id="bmap">🗺 Mapa</button><button id="bchat" aria-label="Chat">💬</button><button id="bphone" aria-label="Mobil">📱</button><button id="bst" aria-label="Nastavení">⚙</button><div id="arrowbox"><div id="arrow">▲</div><div id="adist"></div></div><div id="spd"></div></div>
  <div id="toast"></div><div id="chatlog"></div>
  <div id="chat" hidden><div class="cq" id="cq"></div><div class="cin"><input id="ci" maxlength="100" placeholder="Napiš zprávu…" autocomplete="off"><button id="csend">Poslat</button><button id="cx">✕</button></div></div>
  <div id="panel" hidden></div><div id="hk" hidden></div><div id="adm" hidden></div><div id="st" hidden></div>
@@ -729,6 +729,11 @@ const holds={l:new Set(),r:new Set(),rope:new Set(),f:new Set(),b:new Set(),aim:
 // Players share one world. Movement is synchronized; missions/vehicles/combat remain local in this first version.
 const SKINS={gold:{n:'Zlatý',suit:0xc99a00,emi:0x3a2a00,gold:0xffffff,dark:0x2a1a00},neon:{n:'Neon',suit:0x00e676,emi:0x003d1f,gold:0xff2bd6,dark:0x001a10},lava:{n:'Láva',suit:0xff4500,emi:0x4a1200,gold:0xffd000,dark:0x1a0600},ice:{n:'Led',suit:0x8fe3ff,emi:0x10303a,gold:0xffffff,dark:0x16394d},ghost:{n:'Duch',suit:0xe8e8f0,emi:0x303040,gold:0x9aa0ff,dark:0x55556a},owner:{n:'Creator',suit:0x3a1478,emi:0x1c0a40,gold:0x35e0ff,dark:0x07050f,crown:true}};
 const SKIN_DEF={suit:0x2ec4b6,emi:0x000000,gold:0xffd166,dark:0x0e1a2e};
+// Vlastní skin (volí si každý) – jen běžné skiny, bez 'owner' (Creator) a bez helper/developer vzhledu
+const MY_SKINS=['gold','neon','lava','ice','ghost'];
+let MYSKIN=null;try{const k=localStorage.getItem('rr3d_skin');if(MY_SKINS.includes(k))MYSKIN=k;}catch(_){}
+function mpAuth(){try{if(isCreator&&MP.pass&&!MP.admin&&MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify({type:'auth',name:curName,pass:MP.pass}));}catch(_){}}
+function sendMySkin(){try{if(MP&&MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify({type:'myskin',value:MYSKIN}));}catch(_){}}
 function paint(h,s){const m=h.mats;m.suit.color.set(s.suit);m.suit.emissive.set(s.emi);m.gold.color.set(s.gold);m.gold.emissive.set(0);m.dark.color.set(s.dark);h.crown.visible=!!s.crown;}
 let canDrive=true,banW=0;
 function clearGrants(){canDrive=true;if(!isCreator)removeGTR();
@@ -794,13 +799,14 @@ function mpConnect(){
  const url=proto+'//'+location.host+'/ws';
  try{
   const ws=new WebSocket(url);MP.ws=ws;
-  ws.addEventListener('open',()=>{MP.connected=true;mpStatus('Online');ws.send(JSON.stringify({type:'join',name:mpName(),room:MP.room}));if(isCreator&&MP.pass)ws.send(JSON.stringify({type:'auth',name:curName,pass:MP.pass}));toast('Připojeno k multiplayeru',1500);});
+  ws.addEventListener('open',()=>{MP.connected=true;mpStatus('Online');ws.send(JSON.stringify({type:'join',name:mpName(),room:MP.room}));sendMySkin();if(isCreator&&MP.pass)ws.send(JSON.stringify({type:'auth',name:curName,pass:MP.pass}));toast('Připojeno k multiplayeru',1500);});
   ws.addEventListener('message',ev=>{
    let m;try{m=JSON.parse(ev.data)}catch(_){return}
    if(m.type==='chat'){chatAdd(m);return;}
    if(m.type==='grant'){applyGrant(m);return;}
    if(m.type==='ride'){if(m.ok){RIDE={id:String(m.id),seat:+m.seat||1,cap:+m.cap||4};P.rope=null;T.dur=0;toast('Nastoupil jsi jako spolujezdec 👥 ('+(+m.seat+1||2)+'/'+RIDE.cap+') · Auto / G = vystoupit',2800);}else rideEnd(m.reason);return;}
    if(m.type==='pay'||m.type==='payok'||m.type==='payfail'){if(window.phoneMsg)phoneMsg(m);return;}
+   if(m.type==='admin'&&!m.ok){toast('Admin ověření selhalo – špatné heslo nebo jiný ADMIN_HASH na serveru',4500);return;}
    if(m.type==='admin'&&m.ok){MP.admin=true;$('bpl').hidden=false;toast('Admin práva na hráče aktivní',2000);return;}
    if(m.type==='snapshot'&&Array.isArray(m.players)){
     const seen=new Set();
@@ -830,14 +836,14 @@ var PHL=[];
 #phone button{background:#1b2540;color:#fff;border:1px solid #fff3;border-radius:12px;padding:8px;font:inherit}#phone input,#phone select{background:#101830;color:#fff;border:1px solid #fff3;border-radius:8px;padding:7px;font:inherit;width:100%;box-sizing:border-box;margin:3px 0}
 .pha{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:10px}.pha button{aspect-ratio:1;font-size:22px;padding:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}.pha small{font-size:9px}
 .phm{padding:3px 0;border-bottom:1px solid #fff1;word-break:break-word}
-#hudR #bmenu,#hudR #bgun,#hudR #bspawn,#hudR #btod,#hudR #bfs,#hudR #bhk,#hudR #bpl,#hudR #bmap,#hudR #bchat,#hudR #bst{display:none!important}`;document.head.appendChild(st);
+#hudR #bmenu,#hudR #bgun,#hudR #bspawn,#hudR #btod,#hudR #bfs,#hudR #bhk,#hudR #bmap,#hudR #bchat,#hudR #bst{display:none!important}`;document.head.appendChild(st);
  const ph=document.createElement('div');ph.id='phone';ph.hidden=true;$('view').appendChild(ph);
  const E=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),fm=n=>String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,' ');
  const clk=()=>{const h=Math.floor(TOD.h),m=Math.floor((TOD.h-h)*60);return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');};
  const WC=[['☀️','Slunečno'],['⛅','Polojasno'],['☁️','Zataženo'],['🌦','Přeháňky'],['⛈','Bouřky']];
  const wxAt=(h,off)=>{let x=Math.sin((Math.floor(Date.now()/1800000)+off)*12.9898)*43758.5453;x-=Math.floor(x);const ci=x<0.4?0:x<0.65?1:x<0.85?2:x<0.95?3:4;return{ci,t:Math.round(11+8*Math.sin((h-9)/24*Math.PI*2)-(ci>=3?3:ci===2?1.5:0))};};
  const apps=()=>{const a=[['m','🎯','Mise'],['g','🔫','Zbraně'],['c','🔧','Tuning'],['bank','🏦','Banka'],['chat','💬','Chat'],['wx','🌦','Počasí'],['map','🗺','Mapa'],['pl','👥','Hráči'],['st','⚙','Nastavení'],['fs','⛶','Celá obr.']];
-  if(!$('bspawn').hidden)a.push(['sp','🚘','Auta']);if(!$('btod').hidden)a.push(['tod','🌅','Čas']);if(!$('bhk').hidden)a.push(['hk','🕹','Hack']);if(!$('bpl').hidden)a.push(['adm','🛡','Správa']);return a;};
+  if(!$('bspawn').hidden)a.push(['sp','🚘','Auta']);if(!$('btod').hidden)a.push(['tod','🌅','Čas']);if(!$('bhk').hidden)a.push(['hk','🕹','Hack']);return a;};
  const EXT={m:()=>togglePanel('m'),g:()=>togglePanel('g'),c:()=>togglePanel('c'),map:()=>openMap(),st:()=>$('bst').click(),sp:()=>togglePanel('s'),tod:()=>togglePanel('d'),hk:()=>$('bhk').click(),adm:()=>$('bpl').click()};
  let app='home',pend=[],note='',iv=0;
  const logHtml=()=>PHL.slice(-40).map(m=>'<div class="phm"><b style="color:'+(m[2]==='creator'?'#35e0ff':'#ffd166')+'">'+E(m[0])+':</b> '+E(m[1])+'</div>').join('')||'<div style="opacity:.6">Zatím žádné zprávy.</div>';
@@ -1464,10 +1470,23 @@ function renderGuns(){
  panel.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>{const w=WEAPONS.find(x=>x.id===b.dataset.w);gmsg='';if(!owned.includes(w.id)){if(money<w.price){gmsg='Nemáš dost peněz – chybí $'+(w.price-money)+'.';renderPanel();return;}money-=w.price;owned.push(w.id);}equipped=w.id;save();equip();renderPanel();});
  $('bcl').onclick=()=>{panel.hidden=true;paused=false;};
 }
+function renderSkins(){
+ const hex=c=>'#'+c.toString(16).padStart(6,'0');
+ const opt=(id,name,col)=>{const on=(MYSKIN||null)===id;return '<button class=\"mc'+(on?' done':'')+'\" data-sk=\"'+(id||'')+'\"><b><span style=\"display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:8px;vertical-align:-2px;background:'+col+';border:1px solid #fff6\"></span>'+name+(on?' – vybráno':'')+'</b><small>'+(on?'tento skin máš teď':'klepni pro změnu')+'</small></button>';};
+ panel.innerHTML='<h2>Skin postavy</h2>'+opt(null,'Výchozí',hex(SKIN_DEF.suit))+MY_SKINS.map(k=>opt(k,SKINS[k].n,hex(SKINS[k].suit))).join('')
+  +(SESS.skin?'<p style=\"font-size:12px;color:#ffd166\">Matýsek ti nastavil skin – má přednost, dokud ti ho nesundá.</p>':'')
+  +'<div class=\"row\"><button id=\"bcl\">Zavřít</button></div>';
+ panel.querySelectorAll('[data-sk]').forEach(b=>b.onclick=()=>{
+  const v=b.dataset.sk||null;MYSKIN=MY_SKINS.includes(v)?v:null;
+  try{if(MYSKIN)localStorage.setItem('rr3d_skin',MYSKIN);else localStorage.removeItem('rr3d_skin');}catch(_){}
+  setSkin(isCreator,isHelper);sendMySkin();
+  toast(MYSKIN?'Skin: '+SKINS[MYSKIN].n:'Skin: výchozí',1500);renderPanel();});
+ $('bcl').onclick=()=>{panel.hidden=true;paused=false;};
+}
 function renderPanel(){
  if((tab==='s'||tab==='d')&&!(isCreator||isHelper))tab='m';
- if(tab==='m')renderMissions();else if(tab==='c')renderTune();else if(tab==='s')renderSpawn();else if(tab==='d')renderTime();else renderGuns();
- panel.insertAdjacentHTML('afterbegin','<div class="row"><button data-t="m">Mise</button><button data-t="g">Zbraně</button><button data-t="c">Tuning</button>'+((isCreator||isHelper)?'<button data-t="s">Auta</button><button data-t="d">Čas</button>':'')+'<b style="margin-left:auto;align-self:center;color:#7dff9b">$ '+money+'</b></div>');
+ if(tab==='m')renderMissions();else if(tab==='c')renderTune();else if(tab==='s')renderSpawn();else if(tab==='d')renderTime();else if(tab==='k')renderSkins();else renderGuns();
+ panel.insertAdjacentHTML('afterbegin','<div class="row"><button data-t="m">Mise</button><button data-t="g">Zbraně</button><button data-t="c">Tuning</button><button data-t="k">Skin</button>'+((isCreator||isHelper)?'<button data-t="s">Auta</button><button data-t="d">Čas</button>':'')+'<b style="margin-left:auto;align-self:center;color:#7dff9b">$ '+money+'</b></div>');
  panel.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;gmsg='';renderPanel();});
 }
 function togglePanel(t){
@@ -2260,6 +2279,8 @@ const loginEl=$('login'),lu=$('lu'),lp=$('lp'),lerr=$('lerr');
 try{lu.value=localStorage.getItem('rr3d_name')||'';}catch(_){}
 try{if(window.CSS&&CSS.supports&&(CSS.supports('-webkit-text-security','disc')||CSS.supports('text-security','disc'))){lp.type='text';lp.classList.add('mask');}}catch(_){}
 function setSkin(owner,hp){
+ const _ps=(SESS.skin&&SKINS[SESS.skin]&&SESS.skin!=='owner')?SKINS[SESS.skin]:(MYSKIN&&SKINS[MYSKIN]?SKINS[MYSKIN]:null);
+ if(_ps){paint(hero,_ps);return;}
  const m=hero.mats;
  m.suit.color.set(owner?0x3a1478:hp?0xd62839:0x2ec4b6);m.suit.emissive.set(owner?0x1c0a40:hp?0x4a0a10:0x000000);
  m.gold.color.set(owner?0x35e0ff:hp?0xffb703:0xffd166);m.gold.emissive.set(owner?0x0a4a55:hp?0x3a2a00:0x000000);
@@ -2271,7 +2292,7 @@ function enter(creator,name,helper){
  isCreator=creator;isHelper=!!helper;curName=name;setSkin(creator,helper);Object.assign(CH,CH0);
  $('bhk').hidden=!(creator||helper);$('bspawn').hidden=!(creator||helper);if(!(creator||helper)){removeM4();removeGW();}if(!creator)removeGTR();$('btod').hidden=!(creator||helper);if(!(creator||helper))todReset();
  try{localStorage.setItem('rr3d_name',name);}catch(_){}
- loginEl.hidden=true;paused=false;lp.value='';if(homeId)respawn();mpConnect();
+ loginEl.hidden=true;paused=false;lp.value='';if(homeId)respawn();mpConnect();mpAuth();
  toast(creator?'Přihlášen: '+name+' 👑 (Hack menu odemčeno)':'Ahoj, '+(name||'hráči')+'!');
 }
 function logout(){MP.pass='';MP.admin=false;$('bpl').hidden=true;if(MP.ws)MP.ws.close();isCreator=false;isHelper=false;Object.assign(CH,CH0);$('bhk').hidden=true;$('bspawn').hidden=true;removeM4();removeGW();removeGTR();$('btod').hidden=true;todReset();showLogin();}
