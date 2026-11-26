@@ -67,9 +67,9 @@ server.on('upgrade', (req, socket, head) => {
 let nextId = 1;
 const clients = new Map();
 
-// ===== Spolujízda: do každého auta se vejdou 4 lidé (včetně řidiče), do GT-R jen 2 =====
-const VEH_KINDS = ['std', 'm4', 'gtr'];
-const seatCap = d => (d.veh && d.veh.k === 'gtr') ? 2 : 4;
+// ===== Spolujízda: do každého auta se vejdou 4 lidé (včetně řidiče), do G-Wagonu 6, do GT-R jen 2 =====
+const VEH_KINDS = ['std', 'm4', 'gtr', 'gw'];
+const seatCap = d => (d.veh && d.veh.k === 'gtr') ? 2 : (d.veh && d.veh.k === 'gw') ? 6 : 4;
 
 function sendTo(ws, obj) {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
