@@ -269,6 +269,9 @@ function getBaseTex(base,gable){
  const ce=document.createElement('canvas');ce.width=ce.height=512;const ge=ce.getContext('2d');ge.fillStyle='#000';ge.fillRect(0,0,512,512);
  g.fillStyle=base;g.fillRect(0,0,512,512);
  for(let i=0;i<900;i++){g.fillStyle='rgba('+(Math.random()<.5?'0,0,0':'255,255,255')+','+(Math.random()*0.05)+')';g.fillRect(Math.random()*512,Math.random()*512,Math.random()*34+2,Math.random()*22+2);}
+ grain(g,512,512,9000,['0,0,0','255,255,255','90,80,60'],0.03,0.12,2);                                  // zrnitost omítky
+ for(let i=0;i<26;i++){const x=Math.random()*512,y=Math.random()*512,r=10+Math.random()*40,gr=g.createRadialGradient(x,y,1,x,y,r);gr.addColorStop(0,'rgba(60,50,35,.10)');gr.addColorStop(1,'rgba(60,50,35,0)');g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2);} // skvrny od vlhkosti
+ for(let i=0;i<40;i++){const x=Math.random()*512;g.fillStyle='rgba(50,45,38,'+(0.03+Math.random()*0.06)+')';g.fillRect(x,Math.random()*512,1+Math.random()*2,30+Math.random()*90);} // zatékání deště
  for(let cx=0;cx<4;cx++)for(let cy=0;cy<4;cy++)drawCell(g,cx*128,cy*128,gable,ge);
  const t=new THREE.CanvasTexture(cv);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=MAXANI;
  const e=new THREE.CanvasTexture(ce);e.wrapS=e.wrapT=THREE.RepeatWrapping;e.anisotropy=MAXANI;emTex[k]=e;
@@ -281,9 +284,11 @@ function wallMat(base,nb,nf,gable){
  const e=emTex[base+(gable?'g':'f')].clone();e.needsUpdate=true;e.wrapS=e.wrapT=THREE.RepeatWrapping;e.repeat.set(nb/4,nf/4);e.anisotropy=MAXANI;
  const m=new THREE.MeshLambertMaterial({map:t,emissive:0xffffff,emissiveMap:e,emissiveIntensity:NIGHTK});EMMATS.push(m);texCache[key]=m;return m;
 }
-const roofMat=new THREE.MeshLambertMaterial({color:0x7a7f88});
+function mkTex(w,h,draw,rx,ry){const cv=document.createElement('canvas');cv.width=w;cv.height=h;const g=cv.getContext('2d');draw(g,w,h);const t=new THREE.CanvasTexture(cv);t.wrapS=t.wrapT=THREE.RepeatWrapping;if(rx)t.repeat.set(rx,ry);t.anisotropy=MAXANI;return t;}
+function grain(g,w,h,n,cols,a0,a1,sm){for(let i=0;i<n;i++){g.fillStyle='rgba('+cols[(Math.random()*cols.length)|0]+','+(a0+Math.random()*(a1-a0)).toFixed(3)+')';const q=1+Math.random()*sm;g.fillRect(Math.random()*w,Math.random()*h,q,q);}}
+const roofMat=new THREE.MeshLambertMaterial({map:mkTex(256,256,(g,w,h)=>{g.fillStyle='#7d8189';g.fillRect(0,0,w,h);grain(g,w,h,5000,['40,42,46','190,192,196','110,114,120'],0.08,0.3,2.5);for(let i=0;i<7;i++){g.fillStyle='rgba(30,32,36,.12)';g.beginPath();g.arc(Math.random()*w,Math.random()*h,8+Math.random()*26,0,7);g.fill();}g.fillStyle='rgba(20,22,26,.2)';for(let x=0;x<w;x+=64)g.fillRect(x,0,2,h);},6,3)});
 const parapetMat=new THREE.MeshLambertMaterial({color:0xdedbd2});
-const concreteMat=new THREE.MeshLambertMaterial({color:0x9a9890});
+const concreteMat=new THREE.MeshLambertMaterial({map:mkTex(128,128,(g,w,h)=>{g.fillStyle='#a3a198';g.fillRect(0,0,w,h);grain(g,w,h,2200,['60,58,54','220,218,210'],0.06,0.22,2);g.fillStyle='rgba(40,40,40,.25)';g.fillRect(0,h/2,w,2);},2,2)});
 const COLORS=['#f4e8c8','#bfeacb','#ffc9bd','#b5dcff','#fff09a','#dcd9cf'];
 
 const boxes=[];const bmap={};
@@ -298,6 +303,7 @@ function finalizeDetails(){
   m.instanceMatrix.needsUpdate=true;m.instanceColor.needsUpdate=true;m.frustumCulled=false;m.castShadow=m.receiveShadow=true;scene.add(m);};
  mk(new THREE.BoxGeometry(1,1,1),DET.box);mk(new THREE.CylinderGeometry(1,1,1,10),DET.tank);mk(new THREE.ConeGeometry(1,1,10),DET.cap);
 }
+const brandB=rng(913);
 function building(x,z,sx,sz,floors,color,opt){
  opt=opt||{};
  const h=floors*2.8;
@@ -321,6 +327,25 @@ function building(x,z,sx,sz,floors,color,opt){
   if(Math.max(sx,sz)>=14&&floors>=2){const AW=['#c0392b','#2c6fb0','#2e8b57','#d68910','#7d3c98','#b03a5b'],ac=AW[Math.floor(L()*AW.length)];
    if(sx>=sz){const len=Math.min(24,sx*0.8);[-1,1].forEach(s=>dpush(DET.box,x,3.1,z+s*(sz/2+1),len,0.3,2,ac));}
    else{const len=Math.min(24,sz*0.8);[-1,1].forEach(s=>dpush(DET.box,x+s*(sx/2+1),3.1,z,2,0.3,len,ac));}}
+ }
+ // ===== reálnější průčelí: obchody v přízemí, vystouplé balkony, satelity =====
+ if(!opt.rot&&opt.gable&&sx>=30){
+  const B=brandB,cw=sx/nbx,SHC=['#1f3b52','#2a4a40','#3d2f2a','#24324a'],SGN=['#c0392b','#2c6fb0','#d68910','#2e8b57','#8e44ad','#e8e8e0'],RL='#5f6c78',SL='#c9c5bb';
+  for(const sd of [1,-1]){
+   const zf=z+sd*(sz/2+0.07),ns=Math.max(2,Math.floor(sx/10)),sw=sx/ns;
+   for(let i=0;i<ns;i++){const cx=x-sx/2+sw*(i+0.5);
+    dpush(DET.box,cx,2.2,zf,sw*0.78,2.2,0.12,SHC[Math.floor(B()*SHC.length)]);                      // výloha
+    dpush(DET.box,cx,3.3,zf+sd*0.05,sw*0.5,0.45,0.2,SGN[Math.floor(B()*SGN.length)]);               // cedule
+    if(B()<0.6)dpush(DET.box,cx+sw*0.3,1.7,zf+sd*0.05,1.1,2.0,0.14,'#3b3f45');}                     // vchod
+  }
+  const zb=z+sz/2;
+  for(let f=1;f<floors;f++)for(let i=0;i<Math.floor(nbx/2);i++){
+   const bxp=x-sx/2+cw*(0.5+2*i+(f%2)),y0=f*2.8;
+   dpush(DET.box,bxp,y0+0.08,zb+0.55,2.4,0.16,1.1,SL);                                             // deska balkonu
+   dpush(DET.box,bxp,y0+0.7,zb+1.07,2.4,0.9,0.06,RL);                                              // zábradlí
+   if(B()<0.18)dpush(DET.box,bxp+0.6,y0+1.35,zb+0.9,0.55,0.5,0.12,'#e6e6e6');                      // satelit
+   else if(B()<0.12)dpush(DET.box,bxp-0.5,y0+0.45,zb+0.6,0.7,0.5,0.4,'#d8dadd');                   // klimatizace
+  }
  }
  if(opt.decor)return null;
  const b=addBox(x,0,z,sx,h,sz);b.h=h;b.x=x;b.z=z;
@@ -362,24 +387,118 @@ const school=building(-60,0,30,14,4,'#e6dba8',{gable:true});
 const pizzeria=building(-60,-24,14,10,2,'#e3c7c0');
 
 
+// ===== SADA DOMKŮ: duté, průchozí, s okny, střechou a vybavením (instancované po blocích mapy) =====
+const HK=(function(){
+ const hr=rng(4242),dm=new THREE.Object3D(),cc=new THREE.Color();
+ const KD={},chunks=new Map(),CHK=160,floors=[];
+ // textury mapované ve světových souřadnicích (žádné natahování na dlouhých zdech)
+ function wuv(m,s,key){m.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n{vec4 wp4=modelMatrix*instanceMatrix*vec4(transformed,1.0);vec3 an=abs(normal);vUv=an.x>0.5?wp4.zy*'+s.toFixed(4)+':(an.z>0.5?wp4.xy*'+s.toFixed(4)+':wp4.xz*'+s.toFixed(4)+');}');};m.customProgramCacheKey=()=>'wuv'+key+s;return m;}
+ const glow=(m,col)=>{m.emissive=new THREE.Color(col);m.emissiveIntensity=NIGHTK;EMMATS.push(m);return m;};
+ // omítka
+ const plasterTex=mkTex(256,256,(g,w,h)=>{g.fillStyle='#f3f1ea';g.fillRect(0,0,w,h);grain(g,w,h,7000,['0,0,0','255,255,255','110,95,70'],0.02,0.09,2.2);
+  for(let i=0;i<40;i++){g.fillStyle='rgba(255,255,255,'+(0.05+Math.random()*0.07)+')';g.fillRect(0,Math.random()*h,w,1+Math.random()*3);}
+  for(let i=0;i<22;i++){const x=Math.random()*w,y=Math.random()*h,r=14+Math.random()*34,gr=g.createRadialGradient(x,y,1,x,y,r);gr.addColorStop(0,'rgba(70,60,45,.07)');gr.addColorStop(1,'rgba(70,60,45,0)');g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2);}});
+ const plasterMat=wuv(new THREE.MeshLambertMaterial({map:plasterTex}),0.25,'p');
+ // tapeta uvnitř (svítí slabě v noci, aby byl interiér vidět)
+ const wallpTex=mkTex(128,128,(g,w,h)=>{g.fillStyle='#fbf8f0';g.fillRect(0,0,w,h);for(let x=0;x<w;x+=8){g.fillStyle='rgba(0,0,0,.035)';g.fillRect(x,0,3,h);}grain(g,w,h,900,['0,0,0','255,255,255'],0.02,0.07,1.6);g.fillStyle='rgba(60,50,40,.18)';g.fillRect(0,h-12,w,12);});
+ const linMat=glow(wuv(new THREE.MeshLambertMaterial({map:wallpTex}),0.5,'w'),0x6e6455);linMat.emissiveMap=wallpTex;
+ // dřevěná podlaha
+ const floorTex=mkTex(256,256,(g,w,h)=>{for(let r=0;r<8;r++){const v=150+Math.floor(Math.random()*40);g.fillStyle='rgb('+v+','+Math.floor(v*0.74)+','+Math.floor(v*0.47)+')';g.fillRect(0,r*32,w,32);
+   for(let i=0;i<14;i++){g.fillStyle='rgba(60,35,15,'+(0.05+Math.random()*0.1)+')';g.fillRect(Math.random()*w,r*32+Math.random()*30,20+Math.random()*80,1);}
+   g.fillStyle='rgba(30,18,8,.5)';g.fillRect(0,r*32,w,1.5);const o=Math.random()*w;g.fillRect(o,r*32,1.5,32);g.fillRect((o+128)%w,r*32,1.5,32);}});
+ const floorMat=glow(wuv(new THREE.MeshLambertMaterial({map:floorTex}),0.25,'f'),0x4a4036);floorMat.emissiveMap=floorTex;
+ // střešní tašky (běžné UV kuželu)
+ const roofTex=mkTex(128,128,(g,w,h)=>{g.fillStyle='#e6e2dc';g.fillRect(0,0,w,h);for(let r=0;r<8;r++){g.fillStyle='rgba(0,0,0,.22)';g.fillRect(0,r*16,w,2);g.fillStyle='rgba(255,255,255,.12)';g.fillRect(0,r*16+2,w,2);
+   for(let x=(r%2)*8;x<w;x+=16){g.fillStyle='rgba(0,0,0,.16)';g.fillRect(x,r*16,1.5,16);}}grain(g,w,h,1400,['0,0,0','255,255,255'],0.04,0.14,1.6);},9,7);
+ const roofMat=new THREE.MeshLambertMaterial({map:roofTex});
+ // okna: frame + sklo (svítí v noci u části domů)
+ const winTex=(lit)=>{const cv=document.createElement('canvas');cv.width=cv.height=128;const g=cv.getContext('2d');
+  if(!lit){g.fillStyle='#f6f4ef';g.fillRect(0,0,128,128);const gr=g.createLinearGradient(0,10,0,118);gr.addColorStop(0,'#a9cbe6');gr.addColorStop(1,'#4d6f8c');g.fillStyle=gr;g.fillRect(9,9,110,110);
+   g.fillStyle='rgba(255,255,255,.18)';g.beginPath();g.moveTo(9,9);g.lineTo(60,9);g.lineTo(9,70);g.fill();g.fillStyle='#f6f4ef';g.fillRect(61,9,6,110);g.fillRect(9,61,110,6);
+   g.fillStyle='rgba(190,70,70,.55)';g.fillRect(9,9,18,110);g.fillRect(101,9,18,110);g.strokeStyle='rgba(0,0,0,.25)';g.lineWidth=2;g.strokeRect(1,1,126,126);}
+  else{g.fillStyle='#000';g.fillRect(0,0,128,128);const gr=g.createLinearGradient(0,10,0,118);gr.addColorStop(0,'#ffe2b0');gr.addColorStop(1,'#ffbf70');g.fillStyle=gr;g.fillRect(9,9,110,110);g.fillStyle='#000';g.fillRect(61,9,6,110);g.fillRect(9,61,110,6);}
+  const t=new THREE.CanvasTexture(cv);t.anisotropy=MAXANI;return t;};
+ const winL=new THREE.MeshLambertMaterial({map:winTex(false),side:THREE.DoubleSide});glow(winL,0xffffff);winL.emissiveMap=winTex(true);
+ const winD=new THREE.MeshLambertMaterial({map:winTex(false),side:THREE.DoubleSide});
+ const trimMat=new THREE.MeshLambertMaterial({color:0xffffff}),furnMat=glow(new THREE.MeshLambertMaterial({color:0xffffff}),0x3c3732);
+ const lampMat=glow(new THREE.MeshLambertMaterial({color:0xf5efe0}),0xffd9a0);
+ const bushMat=new THREE.MeshLambertMaterial({color:0xffffff});
+ const BOX=new THREE.BoxGeometry(1,1,1),PL=new THREE.PlaneGeometry(1,1),BU=new THREE.IcosahedronGeometry(1,1);
+ const def=(n,geo,mat,inner,sh)=>KD[n]={geo,mat,inner,sh};
+ def('wall',BOX,plasterMat,false,true);def('trim',BOX,trimMat,false,true);def('roof',new THREE.ConeGeometry(1,1,4).rotateY(Math.PI/4),roofMat,false,true);
+ def('winL',PL,winL,false,false);def('winD',PL,winD,false,false);def('bush',BU,bushMat,false,false);
+ def('lin',BOX,linMat,true,false);def('floor',BOX,floorMat,true,false);def('furn',BOX,furnMat,true,false);def('lamp',BOX,lampMat,true,false);
+ let cur=null;
+ function chunkAt(x,z){const ix=Math.floor(x/CHK),iz=Math.floor(z/CHK),k=ix+','+iz;let c=chunks.get(k);if(!c){c={cx:(ix+0.5)*CHK,cz:(iz+0.5)*CHK,d:{},ext:new THREE.Group(),int:new THREE.Group()};chunks.set(k,c);}return c;}
+ const put=(n,x,y,z,sx,sy,sz,col,ry)=>{(cur.d[n]||(cur.d[n]=[])).push([x,y,z,sx,sy,sz,col===undefined?'#ffffff':col,ry||0]);};
+ const PK=a=>a[Math.floor(hr()*a.length)];
+ const IC=['#f6efe0','#efe6d2','#e9f0e4','#e8eef5','#f4e6e2'],SOFA=['#4b6a8a','#8a4b4b','#5d7a52','#6b5a7a','#3d3d44'],RUG=['#a64b4b','#4b6aa6','#c9a96a','#6a8f6a'],TRIM='#f4f1ea';
+ // o: x,z střed; w (osa x) × d (osa z); wh výška zdí; s=+1/-1 strana, kam míří dveře (osa z); wall/roof barvy; dw,dh rozměry dveří; path = délka chodníčku před dveřmi
+ function house(o){
+  const x=o.x,z=o.z,w=o.w,d=o.d,wh=o.wh,s=o.s,t=0.4,dw=o.dw||2.4,dh=o.dh||2.9,segW=(w-dw)/2;
+  cur=chunkAt(x,z);
+  const zf=z+s*(d/2-t/2),zb=z-s*(d/2-t/2),ic=PK(IC),rh=2.8+hr()*0.7;
+  floors.push([x,z,w+1.2,d+1.2]);
+  const wall=(cx,cz,sx,sz,y0,hh)=>{put('wall',cx,y0+hh/2,cz,sx,hh,sz,o.wall);addBox(cx,y0,cz,sx,hh,sz);};
+  // obvodové zdi (kolizní) – přední zeď má uprostřed průchod
+  wall(x-(dw/2+segW/2),zf,segW,t,0,wh);wall(x+(dw/2+segW/2),zf,segW,t,0,wh);wall(x,zf,dw,t,dh,wh-dh);
+  wall(x,zb,w,t,0,wh);wall(x-w/2+t/2,z,t,d-2*t,0,wh);wall(x+w/2-t/2,z,t,d-2*t,0,wh);
+  // strop + okapní římsa (po ní se dá chodit), střecha
+  put('wall',x,wh+0.15,z,w+0.6,0.3,d+0.6,o.wall);addBox(x,wh,z,w+0.6,0.3,d+0.6);
+  put('roof',x,wh+0.3+rh/2,z,(w+0.9)/1.4142,rh,(d+0.9)/1.4142,o.roof);
+  if(hr()<0.8)put('wall',x+w*0.2,wh+0.3+rh*0.475,z-s*d*0.12,1.1,rh*0.95,1.1,'#8a4b3a');
+  // detaily fasády: nárožní kvádry, sokl, zárubeň, stříška, schůdek, chodník
+  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(q=>put('trim',x+q[0]*w/2,wh/2,z+q[1]*d/2,0.42,wh,0.42,TRIM));
+  put('trim',x-(dw/2+segW/2),0.25,zf+s*(t/2+0.05),segW,0.5,0.1,'#9b9488');put('trim',x+(dw/2+segW/2),0.25,zf+s*(t/2+0.05),segW,0.5,0.1,'#9b9488');
+  put('trim',x,0.25,zb-s*(t/2+0.05),w,0.5,0.1,'#9b9488');put('trim',x-w/2-0.05,0.25,z,0.1,0.5,d,'#9b9488');put('trim',x+w/2+0.05,0.25,z,0.1,0.5,d,'#9b9488');
+  put('trim',x-dw/2-0.1,dh/2,zf,0.2,dh,t+0.12,TRIM);put('trim',x+dw/2+0.1,dh/2,zf,0.2,dh,t+0.12,TRIM);put('trim',x,dh+0.1,zf,dw+0.4,0.2,t+0.12,TRIM);
+  put('trim',x,dh+0.55,zf+s*(t/2+0.75),dw+1.4,0.16,1.5,o.roof);
+  put('trim',x,0.05,zf+s*(t/2+0.6),dw+0.8,0.1,1.2,'#b9b4a8');
+  if(o.path){put('trim',x,0.03,zf+s*(t/2+1.2+o.path/2),2,0.06,o.path,'#c4bfb3');floors.push([x,zf+s*(t/2+1.2+o.path/2),2.6,o.path+0.6]);}
+  // okna (venku i uvnitř; část domů svítí v noci)
+  const win=(px,pz,nx,nz,cy)=>{const k=hr()<0.6?'winL':'winD',ry=nz!==0?0:Math.PI/2;
+   put(k,px+nx*(t/2+0.03),cy,pz+nz*(t/2+0.03),1.9,1.6,1,'#ffffff',ry);put(k,px-nx*(t/2+0.06),cy,pz-nz*(t/2+0.06),1.9,1.6,1,'#ffffff',ry);
+   put('trim',px+nx*(t/2+0.1),cy-0.95,pz+nz*(t/2+0.1),nz!==0?2.2:0.26,0.1,nz!==0?0.26:2.2,TRIM);};
+  const wy=Math.min(2.1,wh-1.3);
+  if(segW>=3.4){win(x-(dw/2+segW/2),zf,0,s,wy);win(x+(dw/2+segW/2),zf,0,s,wy);
+   [-1,1].forEach(q=>put('bush',x+q*(dw/2+segW/2),0.42,zf+s*(t/2+0.8),0.85+hr()*0.25,0.55,0.7,cc.setHSL(0.26+hr()*0.07,0.45,0.2+hr()*0.1).clone()));}
+  if(w>=10)win(x,zb,0,-s,wy);win(x-w/2+t/2,z,-1,0,wy);win(x+w/2-t/2,z,1,0,wy);
+  // vnitřní obklad (jiná barva než fasáda) + podlaha + strop
+  const L=0.04;
+  put('lin',x,wh/2,zb+s*(t/2+L/2),w-2*t,wh,L,ic);
+  put('lin',x-w/2+t+L/2,wh/2,z,L,wh,d-2*t,ic);put('lin',x+w/2-t-L/2,wh/2,z,L,wh,d-2*t,ic);
+  const pw=segW-t;put('lin',x-dw/2-pw/2,wh/2,zf-s*(t/2+L/2),pw,wh,L,ic);put('lin',x+dw/2+pw/2,wh/2,zf-s*(t/2+L/2),pw,wh,L,ic);put('lin',x,(dh+wh)/2,zf-s*(t/2+L/2),dw,wh-dh,L,ic);
+  put('lin',x,wh-L/2,z,w-2*t,L,d-2*t,'#f6f1e6');
+  put('floor',x,0.04,z,w-2*t,0.08,d-2*t);
+  // vybavení: gauč + stolek + koberec, skříň, postel, kuchyňská linka, lampa
+  const ix0=x-w/2+t+L,ix1=x+w/2-t-L,zz=k=>zb+s*(t/2+L+k),sx=x+w*0.12,sc=PK(SOFA);
+  put('furn',sx,0.3,zz(0.6),2.4,0.5,1.0,sc);put('furn',sx,0.75,zz(0.18),2.4,0.7,0.28,sc);put('furn',sx-1.1,0.5,zz(0.6),0.25,0.7,1.0,sc);put('furn',sx+1.1,0.5,zz(0.6),0.25,0.7,1.0,sc);
+  put('furn',sx,0.14,zz(2.6),3.2,0.03,2.3,PK(RUG));put('furn',sx,0.3,zz(2.6),1.3,0.36,0.7,'#7a5a3a');
+  put('furn',ix0+0.55,1.1,zz(0.45),1.0,2.2,0.7,'#8a6a46');
+  put('furn',ix1-1.1,0.32,zz(1.3),2.0,0.46,2.3,'#e8e0d0');put('furn',ix1-1.1,0.66,zz(0.5),1.4,0.14,0.5,'#fafafa');put('furn',ix1-1.1,0.5,zz(2.2),2.0,0.2,0.1,PK(SOFA));
+  if(d>=9.2){put('furn',ix1-0.45,0.5,zz(d-3.2),0.8,1.0,3.0,'#d9d3c6');put('furn',ix1-0.45,1.03,zz(d-3.2),0.9,0.06,3.1,'#4a4d52');}
+  put('lamp',x,wh-0.1,z,0.7,0.12,0.7);
+  put('furn',x,0.14,zf-s*(t/2+0.45),1.4,0.03,0.8,'#6b4a3a');
+ }
+ function flush(){chunks.forEach(c=>{for(const n in c.d){const K=KD[n],it=c.d[n],m=new THREE.InstancedMesh(K.geo,K.mat,it.length);
+   it.forEach((q,i)=>{dm.position.set(q[0],q[1],q[2]);dm.scale.set(q[3],q[4],q[5]);dm.rotation.set(0,q[7],0);dm.updateMatrix();m.setMatrixAt(i,dm.matrix);cc.set(q[6]);m.setColorAt(i,cc);});
+   m.instanceMatrix.needsUpdate=true;m.instanceColor.needsUpdate=true;m.frustumCulled=false;m.receiveShadow=true;m.userData.sh=!!K.sh;(K.inner?c.int:c.ext).add(m);}
+   scene.add(c.ext,c.int);});}
+ // viditelnost po blocích: vnější vzhled do ~900 m, stíny do ~230 m, interiér do ~270 m
+ function cull(px,pz){chunks.forEach(c=>{const d=Math.hypot(px-c.cx,pz-c.cz);c.ext.visible=d<1015;c.int.visible=d<385;const sh=d<230;for(const m of c.ext.children)m.castShadow=sh&&m.userData.sh;});}
+ return {house,flush,cull,floors};
+})();
+
 // ===== DOMY NA PRODEJ (jižní park, podél silnice z=330) =====
 const HOUSES=(function(){
  const list=[],HC=['#fff0d2','#f2d3bd','#cfe8cb','#c4dcf2','#f4d9a4'],RC=[0xb04a38,0x7a624c,0x4f6a7e,0x8c4f4f,0x5f7a48];
  const NAMES=['Vila u parku','Domek u cesty','Zahradní vila','Rodinný dům','Dům u silnice'];
  const roofSlab=new THREE.MeshLambertMaterial({color:0x6e737b});
  [-380,-130,120,370,620].forEach((hx,i)=>{
-  const hz=362,wall=new THREE.MeshLambertMaterial({color:new THREE.Color(HC[i])});
-  const solid=(x,y0,z,sx,h2,sz,mat)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(sx,h2,sz),mat);m.position.set(x,y0+h2/2,z);m.castShadow=m.receiveShadow=true;scene.add(m);addBox(x,y0,z,sx,h2,sz);};
-  solid(hx-4.25,0,hz-5,5.5,5,0.6,wall);solid(hx+4.25,0,hz-5,5.5,5,0.6,wall);solid(hx,3,hz-5,3,2,0.6,wall);
-  solid(hx,0,hz+5,14,5,0.6,wall);solid(hx-7,0,hz,0.6,5,10,wall);solid(hx+7,0,hz,0.6,5,10,wall);
-  solid(hx,5,hz,15,0.6,11,roofSlab);
-  const rf=new THREE.Mesh(new THREE.ConeGeometry(1,1,4).rotateY(Math.PI/4),new THREE.MeshLambertMaterial({color:RC[i]}));
-  rf.scale.set(11.5,3.4,8.8);rf.position.set(hx,5.6+1.7,hz);rf.castShadow=true;scene.add(rf);
+  const hz=362;
+  HK.house({x:hx,z:hz,w:14,d:10,wh:5,s:-1,wall:HC[i],roof:RC[i],dw:3,dh:3.3});
   const flat=(w,d,c,x,y,z)=>{const o=new THREE.Mesh(new THREE.PlaneGeometry(w,d),new THREE.MeshLambertMaterial({color:c}));o.rotation.x=-Math.PI/2;o.position.set(x,y,z);o.receiveShadow=true;scene.add(o);return o;};
-  flat(13.4,9.4,0x9c7b52,hx,0.07,hz);flat(4,22,0x8c8c86,hx,0.035,346);
-  [-4.25,4.25].forEach(dx=>{const w2=new THREE.Mesh(new THREE.PlaneGeometry(2,1.4),new THREE.MeshBasicMaterial({color:0x6fa8dc}));w2.position.set(hx+dx,2.3,hz-5.32);w2.rotation.y=Math.PI;scene.add(w2);});
-  const fur=(w,h2,d,c,x,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h2,d),new THREE.MeshLambertMaterial({color:c}));m.position.set(x,h2/2+0.07,z);m.castShadow=true;scene.add(m);};
-  fur(2.2,0.6,1.4,0xb5483f,hx-5,hz+3.8);fur(2,0.8,1.2,0x7a5a3a,hx+3,hz+0.5);fur(3,0.7,1,0x3b5a8a,hx+3.5,hz+3.9);
+  flat(4,22,0x8c8c86,hx,0.035,346);
   // cedule "na prodej"
   const cv=document.createElement('canvas');cv.width=256;cv.height=128;const g=cv.getContext('2d');
   const tex=new THREE.CanvasTexture(cv);
@@ -447,23 +566,94 @@ const BANK=(function(){
  m.position.set(-60,4.2,-29.1);m.rotation.y=Math.PI;scene.add(m);
 })();
 
-const grassTex=(function(){const cv=document.createElement('canvas');cv.width=cv.height=256;const g=cv.getContext('2d');
- g.fillStyle='#7cc247';g.fillRect(0,0,256,256);
- for(let i=0;i<2600;i++){const l=Math.random();g.fillStyle='rgba('+(l<.5?'50,120,40':'190,235,100')+','+(0.08+Math.random()*0.14)+')';g.fillRect(Math.random()*256,Math.random()*256,1+Math.random()*2,2+Math.random()*5);}
- for(let i=0;i<14;i++){g.fillStyle='rgba(120,100,60,.07)';g.beginPath();g.arc(Math.random()*256,Math.random()*256,10+Math.random()*24,0,7);g.fill();}
- const t=new THREE.CanvasTexture(cv);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(460,460);t.anisotropy=MAXANI;return t;})();
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(4600,4600),new THREE.MeshLambertMaterial({map:grassTex}));
+// ===== TRÁVA: detailní dlaždice 512 px + světové makro-variace (žádné opakování) + vlající trsy kolem hráče =====
+const grassTex=(function(){const S=512,cv=document.createElement('canvas');cv.width=cv.height=S;const g=cv.getContext('2d');
+ g.fillStyle='#6fae3e';g.fillRect(0,0,S,S);
+ const wrap=(fn,x,y,r)=>{for(let ox=-S;ox<=S;ox+=S)for(let oy=-S;oy<=S;oy+=S){if(x+ox+r<0||x+ox-r>S||y+oy+r<0||y+oy-r>S)continue;fn(ox,oy);}};   // dlaždice musí navazovat → kreslíme i přes okraj
+ const blob=(x,y,r,c,a)=>wrap((ox,oy)=>{const gr=g.createRadialGradient(x+ox,y+oy,1,x+ox,y+oy,r);gr.addColorStop(0,'rgba('+c+','+a+')');gr.addColorStop(1,'rgba('+c+',0)');g.fillStyle=gr;g.fillRect(x+ox-r,y+oy-r,r*2,r*2);},x,y,r);
+ for(let i=0;i<80;i++)blob(Math.random()*S,Math.random()*S,28+Math.random()*64,['78,142,40','150,194,72','104,160,52','60,118,36'][i&3],0.3);
+ for(let i=0;i<9;i++)blob(Math.random()*S,Math.random()*S,24+Math.random()*40,'150,128,70',0.14);      // vyschlé plošky
+ const pal=['34,86,26','52,116,32','74,146,42','112,176,58','150,206,84','196,208,98'];
+ for(let i=0;i<9500;i++){const x=Math.random()*S,y=Math.random()*S,len=6+Math.random()*13,a=-Math.PI/2+(Math.random()-0.5)*1.5,bend=(Math.random()-0.5)*6,c=pal[Math.min(5,Math.floor(Math.pow(Math.random(),0.8)*6))];
+  const ex=x+Math.cos(a)*len,ey=y+Math.sin(a)*len;g.strokeStyle='rgba('+c+','+(0.35+Math.random()*0.45).toFixed(2)+')';g.lineWidth=0.8+Math.random()*1.1;
+  wrap((ox,oy)=>{g.beginPath();g.moveTo(x+ox,y+oy);g.quadraticCurveTo((x+ex)/2+bend+ox,(y+ey)/2+oy,ex+ox,ey+oy);g.stroke();},x,y,24);}
+ for(let i=0;i<150;i++){const x=Math.random()*S,y=Math.random()*S;wrap((ox,oy)=>{g.fillStyle='rgba(96,164,70,.75)';for(let k=0;k<3;k++){g.beginPath();g.arc(x+ox+Math.cos(k*2.1)*2.6,y+oy+Math.sin(k*2.1)*2.6,2.4,0,7);g.fill();}},x,y,7);}   // jetel
+ for(let i=0;i<26;i++){const x=Math.random()*S,y=Math.random()*S,yel=Math.random()<0.35;wrap((ox,oy)=>{g.fillStyle=yel?'rgba(255,214,60,.95)':'rgba(255,255,255,.92)';g.beginPath();g.arc(x+ox,y+oy,1.4+Math.random()*0.9,0,7);g.fill();g.fillStyle='rgba(250,200,40,.9)';g.beginPath();g.arc(x+ox,y+oy,0.6,0,7);g.fill();},x,y,4);}   // kvítky
+ for(let i=0;i<60;i++){const x=Math.random()*S,y=Math.random()*S;wrap((ox,oy)=>{g.fillStyle='rgba(88,66,38,.22)';g.fillRect(x+ox,y+oy,1+Math.random()*2,1+Math.random()*2);},x,y,4);}
+ const t=new THREE.CanvasTexture(cv);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(4600/8,4600/8);t.anisotropy=MAXANI;return t;})();
+// nízkofrekvenční šum (bezešvý) pro velké plochy světlejší / tmavší trávy
+const grassMacro=(function(){const N=256,cv=document.createElement('canvas');cv.width=cv.height=N;const g=cv.getContext('2d'),im=g.createImageData(N,N);
+ const mk=(cells,seed)=>{const r=rng(seed),v=[];for(let i=0;i<cells*cells;i++)v.push(r());return(x,y)=>{x*=cells;y*=cells;const x0=Math.floor(x),y0=Math.floor(y),tx=x-x0,ty=y-y0,sx=tx*tx*(3-2*tx),sy=ty*ty*(3-2*ty),X=a=>((a%cells)+cells)%cells,a=v[X(y0)*cells+X(x0)],b=v[X(y0)*cells+X(x0+1)],c=v[X(y0+1)*cells+X(x0)],d=v[X(y0+1)*cells+X(x0+1)];return a+(b-a)*sx+(c-a)*sy+(a-b-c+d)*sx*sy;};};
+ const n1=[mk(4,11),mk(8,12),mk(16,13)],n2=[mk(5,21),mk(10,22),mk(20,23)],n3=[mk(6,31),mk(12,32),mk(24,33)];
+ const f=(n,u,v)=>n[0](u,v)*0.55+n[1](u,v)*0.3+n[2](u,v)*0.15;
+ for(let y=0;y<N;y++)for(let x=0;x<N;x++){const u=x/N,v=y/N,i=(y*N+x)*4;im.data[i]=f(n1,u,v)*255;im.data[i+1]=f(n2,u,v)*255;im.data[i+2]=f(n3,u,v)*255;im.data[i+3]=255;}
+ g.putImageData(im,0,0);const t=new THREE.CanvasTexture(cv);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;})();
+const groundMat=new THREE.MeshLambertMaterial({map:grassTex});
+groundMat.onBeforeCompile=sh=>{sh.uniforms.tMacro={value:grassMacro};
+ sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
+ sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;uniform sampler2D tMacro;').replace('#include <map_fragment>',
+  '#include <map_fragment>\n{vec3 mm=texture2D(tMacro,vWP.xz*0.0042).rgb;vec3 m2=texture2D(tMacro,vWP.xz*0.0173+0.31).rgb;\nvec3 alt=texture2D(map,vUv*0.173+vec2(0.37,0.61)).rgb;\ndiffuseColor.rgb=mix(diffuseColor.rgb,alt,smoothstep(0.35,0.65,mm.g)*0.55);\ndiffuseColor.rgb*=mix(vec3(0.80,0.88,0.68),vec3(1.12,1.08,1.0),mm.r)*(0.88+0.24*m2.b);}');};
+groundMat.customProgramCacheKey=()=>'grassGround';
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(4600,4600),groundMat);
 ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+// vlající trsy trávy v okolí kamery (jen tam, kde není silnice / chodník / budova / podlaha domu)
+const GTUFT=(function(){
+ const R0=rng(515),pos=[],col=[],nor=[],bl=(ox,oz,ang,h,wd,bend)=>{const c=Math.cos(ang),s=Math.sin(ang);
+  const P=(u,y,b)=>[ox+c*u-s*b,y,oz+s*u+c*b],B1=P(-wd/2,0,0),B2=P(wd/2,0,0),M1=P(-wd*0.28,h*0.55,bend*0.3),M2=P(wd*0.28,h*0.55,bend*0.3),T=P(0,h,bend);
+  const lo=[0.26,0.46,0.12],mi=[0.36,0.6,0.16],hi=[0.55,0.8,0.26];
+  [[B1,lo],[B2,lo],[M2,mi],[B1,lo],[M2,mi],[M1,mi],[M1,mi],[M2,mi],[T,hi]].forEach(q=>{pos.push(...q[0]);col.push(...q[1]);nor.push(0,1,0);});};
+ for(let k=0;k<6;k++){const a=R0()*6.28,r=R0()*0.22;bl(Math.cos(a)*r,Math.sin(a)*r,R0()*6.28,0.32+R0()*0.34,0.07+R0()*0.04,(R0()-0.4)*0.22);}
+ const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geo.setAttribute('color',new THREE.Float32BufferAttribute(col,3));geo.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));
+ const uT={value:0},mat=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
+ mat.onBeforeCompile=sh=>{sh.uniforms.uT=uT;sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nuniform float uT;').replace('#include <begin_vertex>','#include <begin_vertex>\n{vec4 wq=instanceMatrix*vec4(transformed,1.0);float ph=wq.x*0.35+wq.z*0.27+uT*1.7;float hh=transformed.y;transformed.x+=sin(ph)*0.22*hh*hh;transformed.z+=cos(ph*0.8)*0.14*hh*hh;}');};
+ mat.customProgramCacheKey=()=>'grassTuft';
+ const MAX=3400,mesh=new THREE.InstancedMesh(geo,mat,MAX);mesh.frustumCulled=false;mesh.receiveShadow=true;mesh.count=0;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+ mesh.setColorAt(0,new THREE.Color(1,1,1));mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);scene.add(mesh);
+ return {mesh,uT,lx:1e9,lz:1e9,idx:null,rects:[],circ:[],rings:[]};})();
+function grassInit(){const G=GTUFT,B=64,idx=new Map(),add=(x0,z0,x1,z1)=>{const r=G.rects.length;G.rects.push([x0,z0,x1,z1]);
+  for(let i=Math.floor(x0/B);i<=Math.floor(x1/B);i++)for(let j=Math.floor(z0/B);j<=Math.floor(z1/B);j++){const k=i+','+j;(idx.get(k)||idx.set(k,[]).get(k)).push(r);}};
+ const bb=new THREE.Box3();
+ for(const o of scene.children){if(!o.isMesh||o===ground||o.material.transparent)continue;const gt=o.geometry.type;if(gt!=='PlaneGeometry'&&gt!=='BoxGeometry'&&gt!=='CircleGeometry'&&gt!=='RingGeometry')continue;
+  bb.setFromObject(o);if(bb.min.y>0.4||bb.max.x-bb.min.x<1||bb.max.z-bb.min.z<1)continue;
+  if(gt==='CircleGeometry')G.circ.push([(bb.min.x+bb.max.x)/2,(bb.min.z+bb.max.z)/2,(bb.max.x-bb.min.x)/2+0.5]);
+  else if(gt==='RingGeometry')G.rings.push([(bb.min.x+bb.max.x)/2,(bb.min.z+bb.max.z)/2,o.geometry.parameters.innerRadius-0.5,o.geometry.parameters.outerRadius+0.5]);
+  else add(bb.min.x-0.3,bb.min.z-0.3,bb.max.x+0.3,bb.max.z+0.3);}
+ for(const b of boxes)if(b.min.y<1.5)add(b.min.x-0.7,b.min.z-0.7,b.max.x+0.7,b.max.z+0.7);
+ for(const f of HK.floors)add(f[0]-f[2]/2,f[1]-f[3]/2,f[0]+f[2]/2,f[1]+f[3]/2);
+ G.idx=idx;G.B=B;}
+function onGrass(x,z){const G=GTUFT,l=G.idx.get(Math.floor(x/G.B)+','+Math.floor(z/G.B));
+ if(l)for(const r of l){const q=G.rects[r];if(x>q[0]&&x<q[2]&&z>q[1]&&z<q[3])return false;}
+ for(const c of G.circ)if(Math.hypot(x-c[0],z-c[1])<c[2])return false;
+ for(const c of G.rings){const d=Math.hypot(x-c[0],z-c[1]);if(d>c[2]&&d<c[3])return false;}
+ return true;}
+const gtO=new THREE.Object3D(),gtC=new THREE.Color();
+const gh=(i,j)=>{let h=(Math.imul(i,374761393)+Math.imul(j,668265263))|0;h=Math.imul(h^(h>>>13),1274126177);return((h^(h>>>16))>>>0)/4294967296;};
+function grassUpdate(dt){const G=GTUFT;G.uT.value+=dt;if(!G.idx)grassInit();
+ const cx=camera.position.x,cz=camera.position.z;
+ if(camera.position.y>45){G.mesh.count=0;G.lx=1e9;return;}
+ if(Math.hypot(cx-G.lx,cz-G.lz)<1.2)return;G.lx=cx;G.lz=cz;
+ const RAD=34,C=1.15,i0=Math.floor((cx-RAD)/C),i1=Math.floor((cx+RAD)/C),j0=Math.floor((cz-RAD)/C),j1=Math.floor((cz+RAD)/C);let n=0;
+ for(let i=i0;i<=i1&&n<3400;i++)for(let j=j0;j<=j1&&n<3400;j++){
+  const x=(i+gh(i,j))*C,z=(j+gh(j+77,i-31))*C,d=Math.hypot(x-cx,z-cz);if(d>RAD)continue;
+  const dens=0.62+0.38*Math.sin(x*0.031+1.3)*Math.sin(z*0.027);if(gh(i+5,j+9)>dens)continue;
+  if(x<MB.x0||x>MB.x1||Math.abs(z)>MB.z||!onGrass(x,z))continue;
+  const fade=Math.min(1,(RAD-d)/(RAD*0.4)),h=gh(i-13,j+4),sc=(0.75+0.85*h)*fade;if(sc<0.05)continue;
+  gtO.position.set(x,0,z);gtO.rotation.set(0,gh(i+3,j-8)*6.28,0);gtO.scale.set(sc,sc*(0.85+0.4*gh(i,j+2)),sc);gtO.updateMatrix();G.mesh.setMatrixAt(n,gtO.matrix);
+  const v=0.88+0.24*gh(i+21,j+1);gtC.setRGB(v*(0.92+0.16*h),v,v*(0.82+0.3*gh(i-7,j-2)));G.mesh.setColorAt(n,gtC);n++;}
+ G.mesh.count=n;G.mesh.instanceMatrix.needsUpdate=true;G.mesh.instanceColor.needsUpdate=true;}
 const roadTex=(function(){
  const cv=document.createElement('canvas');cv.width=256;cv.height=64;const g=cv.getContext('2d');
- g.fillStyle='#50555e';g.fillRect(0,0,256,64);
- for(let i=0;i<500;i++){g.fillStyle='rgba(255,255,255,'+Math.random()*0.05+')';g.fillRect(Math.random()*256,Math.random()*64,2,2);}
+ g.fillStyle='#4a4e56';g.fillRect(0,0,256,64);
+ grain(g,256,64,2600,['20,22,26','170,172,176','100,104,110'],0.1,0.4,1.6);
+ g.fillStyle='rgba(15,15,18,.18)';g.fillRect(0,14,256,9);g.fillRect(0,41,256,9);                  // vyjeté koleje
+ g.strokeStyle='rgba(15,15,18,.55)';g.lineWidth=1;for(let i=0;i<4;i++){let x=Math.random()*256,y=Math.random()*64;g.beginPath();g.moveTo(x,y);for(let k=0;k<6;k++){x+=4+Math.random()*10;y+=Math.random()*8-4;g.lineTo(x,y);}g.stroke();}  // praskliny
+ for(let i=0;i<3;i++){g.fillStyle='rgba(20,22,26,.25)';g.fillRect(Math.random()*230,Math.random()*50,12+Math.random()*24,6+Math.random()*10);}  // záplaty
  g.fillStyle='#e8e8e0';g.fillRect(0,30,120,4);
  g.fillStyle='rgba(230,230,220,.55)';g.fillRect(0,2,256,2);g.fillRect(0,60,256,2);
  const t=new THREE.CanvasTexture(cv);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t;
 })();
 const ROADS=[-182,-110,-36,36,110,182];
-const pave=new THREE.MeshLambertMaterial({color:0xd2d1c9});
+const pave=new THREE.MeshLambertMaterial({map:mkTex(256,256,(g,w,h)=>{g.fillStyle='#9c9a93';g.fillRect(0,0,w,h);for(let a=0;a<4;a++)for(let b=0;b<4;b++){const v=200+Math.floor(Math.random()*34);g.fillStyle='rgb('+v+','+(v-2)+','+(v-8)+')';g.fillRect(a*64+2,b*64+2,60,60);}grain(g,w,h,3500,['60,58,54','255,255,250'],0.05,0.2,1.8);},900/4,14/4)});
 ROADS.forEach(z=>{
  const len=900;
  const s=new THREE.Mesh(new THREE.PlaneGeometry(len,14),pave);s.rotation.x=-Math.PI/2;s.position.set(0,0.02,z);s.receiveShadow=true;scene.add(s);
@@ -628,24 +818,9 @@ const MB={x0:-1500,x1:1260,z:1000,zones:[[-1500,-520,-720,720,'#7aa655'],[-450,9
  const asph=lam(0x474b52),HC=['#fff0d2','#f2d3bd','#cfe8cb','#c4dcf2','#f4d9a4','#e6e0d8'],RC=['#b04a38','#7a624c','#4f6a7e','#8c4f4f'],WH=[],RF=[];
  ROWS.forEach(gz=>{flat(940,7,asph,-980,0.05,gz+28);
   for(let gx=-1440;gx<=-520;gx+=52){if(RB()<0.12)continue;const w=11+RB()*5,d=9+RB()*4,h=5+RB()*4,x=gx+RB()*4,z=gz+RB()*3;
-   addBox(x,0,z,w,h,d);WH.push([x,h/2,z,w,h,d,HC[Math.floor(RB()*6)]]);RF.push([x,h+1.6,z,w*0.78,3.2,d*0.78,RC[Math.floor(RB()*4)]]);}});
- function houseMat(){
-  const cv=document.createElement('canvas');cv.width=256;cv.height=128;const g=cv.getContext('2d');
-  const ce=document.createElement('canvas');ce.width=256;ce.height=128;const e=ce.getContext('2d');e.fillStyle='#000';e.fillRect(0,0,256,128);
-  g.fillStyle='#f4f1ea';g.fillRect(0,0,256,128);
-  for(let i=0;i<500;i++){g.fillStyle='rgba('+(Math.random()<.5?'0,0,0':'255,255,255')+','+(Math.random()*0.06)+')';g.fillRect(Math.random()*256,Math.random()*128,Math.random()*18+2,Math.random()*10+2);}
-  g.fillStyle='rgba(60,50,40,.35)';g.fillRect(0,116,256,12);g.fillStyle='rgba(0,0,0,.1)';g.fillRect(0,0,256,5);
-  const win=(x,y,w,hh)=>{g.fillStyle='#fbfaf6';g.fillRect(x-4,y-4,w+8,hh+8);g.fillStyle='#4d6f8c';g.fillRect(x,y,w,hh);
-   const gr=g.createLinearGradient(0,y,0,y+hh);gr.addColorStop(0,'rgba(215,235,255,.5)');gr.addColorStop(1,'rgba(10,25,40,.35)');g.fillStyle=gr;g.fillRect(x,y,w,hh);
-   g.fillStyle='#fbfaf6';g.fillRect(x+w/2-1.5,y,3,hh);g.fillRect(x,y+hh/2-1,w,2.5);g.fillStyle='#c9c4b8';g.fillRect(x-7,y+hh+3,w+14,5);g.fillStyle='#6b7f5a';g.fillRect(x-14,y,9,hh);g.fillRect(x+w+5,y,9,hh);
-   lit(e,x,y,w,hh,0.45);};
-  win(26,34,46,56);win(184,34,46,56);
-  g.fillStyle='#fbfaf6';g.fillRect(104,34,48,84);g.fillStyle='#7a4a2b';g.fillRect(108,38,40,80);g.fillStyle='rgba(0,0,0,.18)';g.fillRect(112,44,14,30);g.fillRect(130,44,14,30);g.fillStyle='#d8b34a';g.fillRect(140,80,4,4);g.fillStyle='#c9c4b8';g.fillRect(96,118,64,4);
-  const t=new THREE.CanvasTexture(cv),et=new THREE.CanvasTexture(ce);t.anisotropy=et.anisotropy=MAXANI;
-  const m=new THREE.MeshLambertMaterial({map:t,emissive:0xffffff,emissiveMap:et,emissiveIntensity:NIGHTK});EMMATS.push(m);return m;}
- for(let v=0;v<4;v++)inst(BOX,WH.filter((_,i)=>i%4===v),houseMat());
- inst(new THREE.ConeGeometry(1,1,4).rotateY(Math.PI/4),RF);
- inst(BOX,WH.filter((_,i)=>i%5!==0).map(w=>[w[0]+w[3]*0.22,w[1]+w[4]/2+2.6,w[2]+w[5]*0.1,1.3,4.2,1.3,'#7a5547']));
+   const wc=HC[Math.floor(RB()*6)],rc=RC[Math.floor(RB()*4)];
+   HK.house({x,z,w,d,wh:3.7+(h-5)/4*0.9,s:1,wall:wc,roof:rc,dw:2.4,dh:2.9,path:Math.max(4,gz+24.5-(z+d/2)-1.6)});}});
+ HK.flush();
  for(let i=0;i<10;i++){const x=-1420+i*100+RB()*40,z=ROWS[Math.floor(RB()*ROWS.length)]+28,h=55+RB()*45;
   if(i%3===0){mesh(new THREE.CylinderGeometry(2,2.6,44,8),lam(0x9aa0a6),x,22,z,true);mesh(new THREE.CylinderGeometry(9,9,11,14),lam(0x8d99a6),x,49,z,true);addBox(x,0,z,5,44,5);addBox(x,43,z,15,12,15);}
   else{mesh(new THREE.CylinderGeometry(0.6,1.1,h,6),lam(0xd9d9d9),x,h/2,z,true);mesh(new THREE.SphereGeometry(1.2,8,6),lam(0xff3b30),x,h+0.6,z);addBox(x,0,z,3,h,3);}}
@@ -2434,7 +2609,7 @@ function loop(now){
  const raw=(now-last)/1000;last=now;adaptRes(raw);SDT+=(Math.min(0.033,raw)-SDT)*0.4;const dt=SDT;time+=dt;
  if(!paused){godF();if(drv&&!GAR.ph){carPhysics(dt);banDrive(dt);}godF();vehUpdate(dt);godF();shopUpdate();if(drv||RIDE){}else{physics(dt/2);physics(dt/2);}missionUpdate(dt);combat(dt);}
  garUpdate(dt);poseHero(dt);mpTick(now,dt);updateCamera(dt);animateWorld(dt,time);HUDT+=dt;if(HUDT>0.05){HUDT=0;hud();}drawOv();
- todUpdate(dt);sun.target.position.copy(P.pos);sun.position.copy(P.pos).add(SUNOFF);
+ todUpdate(dt);HK.cull(camera.position.x,camera.position.z);grassUpdate(dt);sun.target.position.copy(P.pos);sun.position.copy(P.pos).add(SUNOFF);
  (SKYOBJ||(SKYOBJ=scene.getObjectByName('sky'))).position.copy(camera.position);
  fxUpdate(dt);
  renderer.render(scene,camera);
@@ -2534,9 +2709,6 @@ function toggleSettings(){
 $('bst').addEventListener('click',toggleSettings);
 applySet();
 
-requestAnimationFrame(loop);
-})();
-
 // ===== Inventář: 8 slotů (zbraně a věci), klepnutí = vzít do ruky, podržení = přesunout, klávesy 1–8 =====
 (function(){
  const N=8,KEY='rr3d_inv',IC={fist:'👊',knife:'🔪',bat:'🏏',pistol:'🔫',revolver:'🔫',smg:'🔫',sword:'🗡️',shotgun:'🔫',rifle:'🔫',sniper:'🎯',bazooka:'🚀',spray:'🎨',minigun:'⚙️'};
@@ -2571,6 +2743,9 @@ requestAnimationFrame(loop);
  // věci do inventáře: window.invAdd('klic','🔑')
  window.invAdd=(id,icon)=>{if(icon)IC[id]=icon;if(inv.includes(id))return true;const i=inv.indexOf(null);if(i<0)return false;inv[i]=id;sig='';render();return true;};
  sync();render();setInterval(()=>{sync();render();},300);
+})();
+
+requestAnimationFrame(loop);
 })();
 </script>
 </body>
