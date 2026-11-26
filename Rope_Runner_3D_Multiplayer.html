@@ -554,7 +554,7 @@ function makeHero(){
  const mkLeg=x=>{const p=new THREE.Group();p.position.set(x,-0.2,0);inner.add(p);cy(0.095,0.065,0.62,suit,0,-0.31,0,p);sp(0.09,dark,0,-0.63,0.05,p,1,0.7,1.7);return p;};
  const mkArm=x=>{const p=new THREE.Group();p.position.set(x,0.4,0);inner.add(p);cy(0.065,0.05,0.5,suit,0,-0.26,0,p);sp(0.06,skinM,0,-0.55,0,p);return p;};
  const legL=mkLeg(-0.12),legR=mkLeg(0.12),armL=mkArm(-0.33),armR=mkArm(0.33);
- const scarf=new THREE.Group();scarf.position.set(0,0.5,-0.14);inner.add(scarf);bx(0.3,0.06,0.8,gold,0,0,-0.4,scarf);
+ const scarf=new THREE.Group();scarf.position.set(0,0.5,-0.14);scarf.rotation.x=-1.25;inner.add(scarf);bx(0.3,0.06,0.8,gold,0,0,-0.4,scarf);
  const crown=new THREE.Group();crown.position.set(0,0.93,0);crown.visible=false;inner.add(crown);
  const crownM=new THREE.MeshLambertMaterial({color:0xffd166,emissive:0x664400});
  cy(0.17,0.17,0.07,crownM,0,0,0,crown);for(let i=0;i<5;i++){const a=i/5*Math.PI*2,o=cy(0,0.04,0.13,crownM,Math.sin(a)*0.15,0.09,Math.cos(a)*0.15,crown);}
@@ -1383,7 +1383,7 @@ function physics(dt){
  if(!want&&prevRope){P.rope=null;if(!P.grounded&&P.vel.y>3&&Math.hypot(P.vel.x,P.vel.z)>20)startTrick(Math.random()<0.5?'flip':'spin',1);}
  prevRope=want;
  const f=new V3(Math.sin(P.yaw),0,Math.cos(P.yaw));
- if(!CH.fly)P.vel.y-=24*dt;
+ if(!CH.fly)P.vel.y-=(P.rope?24:(P.vel.y<0?GRAV_DOWN:GRAV_UP))*dt;
  const hs=Math.hypot(P.vel.x,P.vel.z);
  if(CH.fly){
   const fb=(holds.f.size>0?1:0)-(holds.b.size>0?1:0),ud=(holds.rope.size>0?1:0)-(holds.aim.size>0?1:0),sp2=22*CH.fspd,kk=Math.min(1,dt*6);
@@ -1402,6 +1402,7 @@ function physics(dt){
   const d=P.pos.clone().sub(P.rope.a),dist=d.length();
   if(dist>P.rope.L){const n=d.multiplyScalar(1/dist);P.pos.copy(P.rope.a).addScaledVector(n,P.rope.L);const vr=P.vel.dot(n);if(vr>0)P.vel.addScaledVector(n,-vr);}
  }
+ const impactVy=P.vel.y;
  let ground=false;
  if(P.pos.y<=0.92){P.pos.y=0.92;if(P.vel.y<0)P.vel.y=0;ground=true;}
  const HW=0.45,HH=0.92;
@@ -1416,6 +1417,7 @@ function physics(dt){
    else{P.pos.z=b.max.z+HW;if(P.vel.z<0)P.vel.z=0;}
   }
  }
+ if(ground&&!P.grounded&&impactVy<-FALL_SAFE&&!CH.fly&&!CH.noclip&&!CH.god)fallHurt(-impactVy);
  P.grounded=ground;
  if(P.pos.x>MB.x1){P.pos.x=MB.x1;P.vel.x=Math.min(0,P.vel.x);}if(P.pos.x<MB.x0){P.pos.x=MB.x0;P.vel.x=Math.max(0,P.vel.x);}
  if(P.pos.z>MB.z){P.pos.z=MB.z;P.vel.z=Math.min(0,P.vel.z);}if(P.pos.z<-MB.z){P.pos.z=-MB.z;P.vel.z=Math.max(0,P.vel.z);}
@@ -1423,6 +1425,14 @@ function physics(dt){
 }
 
 const qT=new THREE.Quaternion(),mT=new THREE.Matrix4();
+const GRAV_UP=26,GRAV_DOWN=58;            // gravitace při stoupání / při pádu
+const FALL_SAFE=24,FALL_LETHAL=62;        // rychlost dopadu (m/s): do 24 žádné zranění (~5 m), od 62 (~33 m) 100 HP
+function fallHurt(v){
+ const d=Math.max(1,Math.min(100,Math.round(1+(v-FALL_SAFE)/(FALL_LETHAL-FALL_SAFE)*99)));
+ hpP-=d;hitCd=1.2;blood(P.pos.clone(),Math.min(16,4+(d>>3)),3);
+ if(hpP<=0){const m=Math.min(money,100);addMoney(-m);toast('Zabil ses pádem! Respawn'+(m?' (−$'+m+')':''),2400);hpP=100;respawn();setWanted(false);return;}
+ toast('Pád −'+d+' HP',1200);
+}
 function poseHero(dt){
  const hg=hero.g;hg.visible=!drv&&!RIDE&&!CH.invis;hg.position.copy(P.pos);
  const f=new V3(Math.sin(P.yaw),0,Math.cos(P.yaw));
@@ -1455,7 +1465,10 @@ function poseHero(dt){
  }
  if(T.dur>0){hero.legL.rotation.x=hero.legR.rotation.x=1.4;}
  if(aimOn)hero.armL.rotation.set(-1.45,0,0);wMesh.rotation.x=aimOn?1.45:0;
- hero.scarf.rotation.set(Math.sin(P.phase*0.7)*0.25-Math.min(0.5,hs/40),Math.sin(P.phase*0.5)*0.2,0);
+ {const S=hero.sS||(hero.sS={a:-1.25,v:0}),td=Math.min(dt,0.05),run=Math.min(1,hs/26),fall=Math.min(1,Math.max(0,-P.vel.y)/34),rise=Math.min(1,Math.max(0,P.vel.y)/20);
+  const tg=-1.25+run*0.85+fall*1.1-rise*0.15+(P.rope?0.4:0); // -1.25 = visí dolů vlivem gravitace
+  S.v+=((tg-S.a)*80-S.v*10)*td;S.a+=S.v*td;
+  hero.scarf.rotation.set(Math.max(-1.45,Math.min(0.9,S.a))+Math.sin(P.phase*0.7)*0.07*run,Math.sin(P.phase*0.5)*0.12*run,0);}
  let top=0;for(const b of boxes){if(P.pos.x>=b.min.x&&P.pos.x<=b.max.x&&P.pos.z>=b.min.z&&P.pos.z<=b.max.z&&b.max.y<=P.pos.y+0.1&&b.max.y>top)top=b.max.y;}
  shadow.position.set(P.pos.x,top+0.07,P.pos.z);const sc=Math.max(0.35,1-(P.pos.y-top)/60);shadow.scale.setScalar(sc);shadow.material.opacity=0.35*sc;
  if(P.rope){
