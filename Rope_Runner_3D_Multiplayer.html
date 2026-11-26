@@ -180,6 +180,7 @@ const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-per
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
 THREE.Texture.DEFAULT_ANISOTROPY=Math.min(8,renderer.capabilities.getMaxAnisotropy());
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+var GFX={grass:34,smap:2048};
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.4;
 view.insertBefore(renderer.domElement,view.firstChild);
 const scene=new THREE.Scene();
@@ -632,7 +633,7 @@ function grassUpdate(dt){const G=GTUFT;G.uT.value+=dt;if(!G.idx)grassInit();
  const cx=camera.position.x,cz=camera.position.z;
  if(camera.position.y>45){G.mesh.count=0;G.lx=1e9;return;}
  if(Math.hypot(cx-G.lx,cz-G.lz)<1.2)return;G.lx=cx;G.lz=cz;
- const RAD=34,C=1.15,i0=Math.floor((cx-RAD)/C),i1=Math.floor((cx+RAD)/C),j0=Math.floor((cz-RAD)/C),j1=Math.floor((cz+RAD)/C);let n=0;
+ const RAD=GFX.grass,C=1.15,i0=Math.floor((cx-RAD)/C),i1=Math.floor((cx+RAD)/C),j0=Math.floor((cz-RAD)/C),j1=Math.floor((cz+RAD)/C);let n=0;
  for(let i=i0;i<=i1&&n<3400;i++)for(let j=j0;j<=j1&&n<3400;j++){
   const x=(i+gh(i,j))*C,z=(j+gh(j+77,i-31))*C,d=Math.hypot(x-cx,z-cz);if(d>RAD)continue;
   const dens=0.62+0.38*Math.sin(x*0.031+1.3)*Math.sin(z*0.027);if(gh(i+5,j+9)>dens)continue;
@@ -695,14 +696,14 @@ const dummy=new THREE.Object3D();
  }
  const lg=new THREE.BufferGeometry();
  lg.setAttribute('position',new THREE.Float32BufferAttribute(P,3));lg.setAttribute('uv',new THREE.Float32BufferAttribute(U,2));lg.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));lg.setIndex(I);
- const CL=26,BR=3;
+ const CL=36,BR=3;
  const trunk=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.2,0.42,1,8).translate(0,0.5,0),new THREE.MeshLambertMaterial({map:barkTex}),N);
  const branch=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.05,0.12,1,5).translate(0,0.5,0),new THREE.MeshLambertMaterial({map:barkTex}),N*BR);
  const core=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),new THREE.MeshBasicMaterial({colorWrite:false,depthWrite:false}),N);
  const leaves=new THREE.InstancedMesh(lg,new THREE.MeshLambertMaterial({map:leafTex,alphaTest:0.45}),N*CL);
  trunk.castShadow=core.castShadow=branch.castShadow=true;trunk.receiveShadow=core.receiveShadow=leaves.receiveShadow=true;
  trunk.frustumCulled=branch.frustumCulled=core.frustumCulled=leaves.frustumCulled=false;
- let n=0,tries=0,nb=0,nl=0;const col=new THREE.Color(),UP=new V3(0,1,0),TB=[];
+ let n=0,tries=0,nb=0;const col=new THREE.Color(),UP=new V3(0,1,0),TB=[];
  while(n<N&&tries<9000){tries++;
   const x=(rand()-0.5)*860,z=(rand()-0.5)*480;
   if(blocked(x,z,5))continue;
@@ -722,11 +723,12 @@ const dummy=new THREE.Object3D();
   for(let k=0;k<CL;k++){
    const th=tr()*6.283,ph=Math.acos(1-tr()*1.55),rr=Math.pow(tr(),0.6)*1.1+0.1,sc=(0.8+tr()*0.45)*s;
    dummy.position.set(x+Math.sin(ph)*Math.cos(th)*2.15*s*rr,5.4*s+Math.cos(ph)*1.9*s*rr-0.15*s,z+Math.sin(ph)*Math.sin(th)*2.15*s*rr);
-   dummy.rotation.set(0,tr()*6.283,0);dummy.scale.set(sc,sc,sc);dummy.updateMatrix();leaves.setMatrixAt(nl,dummy.matrix);
-   const v=0.88+tr()*0.24;col.setRGB(tint[0]*v,tint[1]*v,tint[2]*v);leaves.setColorAt(nl,col);nl++;}
+   dummy.rotation.set(0,tr()*6.283,0);dummy.scale.set(sc,sc,sc);dummy.updateMatrix();leaves.setMatrixAt(k*N+n,dummy.matrix);
+   const v=0.88+tr()*0.24;col.setRGB(tint[0]*v,tint[1]*v,tint[2]*v);leaves.setColorAt(k*N+n,col);}
   n++;
  }
- trunk.count=core.count=n;branch.count=nb;leaves.count=nl;
+ trunk.count=core.count=n;branch.count=nb;leaves.count=N*CL;
+ window.__treeLeaves=k=>{leaves.count=N*Math.max(1,Math.min(CL,k));};
  [trunk,branch,core,leaves].forEach(m=>{m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true;scene.add(m);});
  // kolize až po rozmístění (aby se nezměnilo rozmístění stromů): kmen + koruna (pod korunou se dá projít, do listí a kmene ne)
  TB.forEach(t=>{const x=t[0],z=t[1],s=t[2];addBox(x,0,z,0.85*s,4.8*s,0.85*s);addBox(x,2.6*s,z,3.3*s,5.0*s,3.3*s);});
@@ -2643,8 +2645,8 @@ function adaptRes(raw){
  else if(avg<0.0185&&AQ.cur<AQ.max){c=Math.min(AQ.max,AQ.cur+0.1);AQ.last=0;}
  else AQ.last=0;
  if(c!==AQ.cur){AQ.cur=c;renderer.setPixelRatio(c);resize();}
- if(c<=0.7&&!AQ.low){AQ.low=true;sun.shadow.mapSize.set(1024,1024);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}
- else if(c>0.85&&AQ.low){AQ.low=false;sun.shadow.mapSize.set(2048,2048);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}
+ if(c<=0.7&&!AQ.low&&GFX.smap>1024){AQ.low=true;sun.shadow.mapSize.set(1024,1024);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}
+ else if(c>0.85&&AQ.low){AQ.low=false;sun.shadow.mapSize.set(GFX.smap,GFX.smap);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}
 }
 function loop(now){
  requestAnimationFrame(loop);
@@ -2721,8 +2723,22 @@ showLogin();
 const st=$('st');
 const ANAMES={l:'Doleva',r:'Doprava',f:'Vpřed',b:'Zpět',rope:'Lano',aim:'Míření',fire:'Palba',trick:'Trik',respawn:'Respawn',missions:'Menu misí',guns:'Zbraně',assist:'Asistent navádění',hack:'Hack menu'};
 const keyName=c=>c==='Space'?'Mezerník':c.startsWith('Key')?c.slice(3):c.startsWith('Digit')?c.slice(5):c==='ArrowUp'?'↑':c==='ArrowDown'?'↓':c==='ArrowLeft'?'←':c==='ArrowRight'?'→':c;
-const SET={mm:true};try{Object.assign(SET,JSON.parse(localStorage.getItem('rr3d_set')||'{}'));}catch(_){}
+const SET={mm:true,gfx:'high'};try{Object.assign(SET,JSON.parse(localStorage.getItem('rr3d_set')||'{}'));}catch(_){}
 function saveSet(){try{localStorage.setItem('rr3d_set',JSON.stringify(SET));localStorage.setItem('rr3d_keys',JSON.stringify(KB));}catch(_){}}
+const GQ={
+ low:{name:'Low',pr:0.75,prm:1,sh:0,smap:1024,leaf:10,grass:18},
+ medium:{name:'Medium',pr:1,prm:1,sh:1,smap:1024,leaf:16,grass:26},
+ high:{name:'High',pr:2,prm:1,sh:1,smap:2048,leaf:26,grass:34},
+ epic:{name:'Epic',pr:2.5,prm:1.25,sh:1,smap:4096,leaf:36,grass:34}};
+function applyGfx(){
+ const q=GQ[SET.gfx]||GQ.high,dpr=window.devicePixelRatio||1,pr=Math.min(dpr*q.prm,q.pr);
+ AQ.max=pr;AQ.cur=pr;AQ.acc=0;AQ.n=0;AQ.last=0;AQ.prev=0;AQ.lock=false;AQ.low=false;
+ renderer.setPixelRatio(pr);resize();
+ sun.castShadow=!!q.sh;GFX.smap=q.smap;GFX.grass=q.grass;
+ sun.shadow.mapSize.set(q.smap,q.smap);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
+ if(window.__treeLeaves)window.__treeLeaves(q.leaf);
+ GTUFT.lx=1e9;
+}
 function applySet(){$('mm').style.display=SET.mm?'block':'none';}
 function finishRebind(code){
  const id=rebind;rebind=null;
@@ -2734,6 +2750,7 @@ function renderSettings(){
  st.innerHTML='<div class="hh"><b>⚙ Nastavení</b><button id="stx">✕</button></div>'
  +'<div class="sec"><b>Účet</b><div class="srow"><span>'+(curName||'Host')+(isCreator?' 👑 creator':isHelper?' 🛠 helper':' (host)')+'</span><button id="slo">Odhlásit</button></div></div>'
  +'<div class="sec"><b>Hra</b><div class="srow"><span>Asistent navádění</span><button id="sas">'+(assist?'ON':'OFF')+'</button></div><div class="srow"><span>Minimapa</span><button id="smm">'+(SET.mm?'ON':'OFF')+'</button></div></div>'
+ +'<div class="sec"><b>Grafika</b><div class="srow" style="flex-wrap:wrap">'+Object.keys(GQ).map(k=>'<button data-g="'+k+'" style="flex:1;min-width:64px;border:2px solid '+((SET.gfx||'high')===k?'#4ee08a':'#ffffff33')+'">'+GQ[k].name+'</button>').join('')+'</div><small>Low = nejrychlejší (bez stínů, méně listí a trávy) · Epic = nejhezčí (ostřejší obraz, velké stíny, nejvíc listí). Na slabším mobilu dej Low nebo Medium.</small></div>'
  +'<div class="sec"><b>Klávesy</b><small>Klepni na klávesu a stiskni novou (Esc = zrušit). Šipky vždy fungují na pohyb.</small>'
  +ids.map(id=>'<div class="srow"><span>'+ANAMES[id]+'</span><button data-k="'+id+'"'+(rebind===id?' class="wait"':'')+'>'+(rebind===id?'stiskni klávesu…':keyName(KB[id]))+'</button></div>').join('')
  +'<div class="srow"><span></span><button id="skr">Obnovit výchozí</button></div></div>';
@@ -2741,6 +2758,7 @@ function renderSettings(){
  $('slo').onclick=()=>{st.hidden=true;logout();};
  $('sas').onclick=()=>{assist=!assist;renderSettings();};
  $('smm').onclick=()=>{SET.mm=!SET.mm;applySet();saveSet();renderSettings();};
+ st.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{SET.gfx=b.dataset.g;applyGfx();saveSet();renderSettings();});
  $('skr').onclick=()=>{Object.assign(KB,KB0);rebind=null;saveSet();renderSettings();};
  st.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{rebind=b.dataset.k;renderSettings();});
 }
@@ -2749,7 +2767,7 @@ function toggleSettings(){
  else{st.hidden=true;rebind=null;paused=false;}
 }
 $('bst').addEventListener('click',toggleSettings);
-applySet();
+applySet();applyGfx();
 
 // ===== Inventář: 8 slotů (zbraně a věci), klepnutí = vzít do ruky, podržení = přesunout, klávesy 1–8 =====
 (function(){
