@@ -945,7 +945,7 @@ function mpTick(now,dt){
  if(MP.connected&&MP.ws&&MP.ws.readyState===1&&!paused&&now-MP.lastSend>55){
   MP.lastSend=now;
   const msg={type:'state',x:P.pos.x,y:P.pos.y,z:P.pos.z,yaw:P.yaw};
-  if(drv&&car)msg.veh={k:car.gtr?'gtr':car.bmw?'m4':car.gw?'gw':'std',c:vehColor(car),pt:+(car.pt||0).toFixed(2)};
+  if(drv&&car)msg.veh={k:car.gtr?'gtr':car.bmw?'m4':car.gw?'gw':car.gle?'gle':'std',c:vehColor(car),pt:+(car.pt||0).toFixed(2)};
   if(!RIDE)MP.ws.send(JSON.stringify(msg));
  }
  for(const q of MP.players.values()){
@@ -970,6 +970,7 @@ function mpCarSync(q){
   if(v.k==='gtr'){g=makeGTR();g.userData.paint.color.setHex(v.c);}
   else if(v.k==='m4'){g=makeM4();g.userData.paint.color.setHex(v.c);}
   else if(v.k==='gw'){g=makeGW();g.userData.paint.color.setHex(v.c);}
+  else if(v.k==='gle'){g=makeGLE();g.userData.paint.color.setHex(v.c);}
   else g=makeCarMesh(new THREE.MeshStandardMaterial({color:v.c,roughness:0.28,metalness:0.55}));
   scene.add(g);q.car=g;q.carKey=key;
  }
@@ -1562,7 +1563,7 @@ $('bmenu').addEventListener('click',()=>togglePanel('m'));$('bgun').addEventList
 const CARCOL=[['Červená',0xc0262d],['Modrá',0x2457c5],['Žlutá',0xf2c200],['Zelená',0x1f9d55],['Oranžová',0xf27a1a],['Bílá',0xf2f2f2],['Černá',0x1a1a1a],['Fialová',0x7a3cc4],['Růžová',0xff4fa8]];
 const PR={armor:[800,1800,3500],engine:[700,1600,3200],spoiler:[400,1200]};
 let drv=false;
-const maxHp=()=>car.own?100+TUNE.armor*75:(car.gtr?10000:car.bmw?150:car.gw?250:100);
+const maxHp=()=>car.own?100+TUNE.armor*75:(car.gtr?10000:car.bmw?150:car.gle?220:car.gw?250:100);
 const home=mkVeh(3,-41.6,Math.PI/2,'parked',0xc0262d);home.own=true;car=home;carG=home.g;
 const SM=(c,r,m)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
 const bodyM=home.g.children[0].material,glassM=SM(0x16212c,0.08,0.5),steelM=SM(0x4d535a,0.4,0.7),blackM=SM(0x15171a,0.6,0.2);
@@ -1713,14 +1714,14 @@ function crash(v){
  if(car.hp<=0){const c=Math.min(money,150);addMoney(-c);car.hp=maxHp();car.sp=0;toast('Auto je rozbité – oprava'+(c?' $'+c:'')+'.',2200);}
 }
 function carPhysics1(dt){
- const en=car.own?TUNE.engine:0,sp_=car.own?TUNE.spoiler:0,maxS=car.gtr?114:car.bmw?74:car.gw?52:32+en*10,acc=car.gtr?50:car.bmw?34:car.gw?26:14+en*5,fw=canDrive&&holds.f.size>0,bk=canDrive&&holds.b.size>0,st=(holds.r.size>0?1:0)-(holds.l.size>0?1:0);
+ const en=car.own?TUNE.engine:0,sp_=car.own?TUNE.spoiler:0,maxS=car.gtr?114:car.bmw?74:car.gle?64:car.gw?52:32+en*10,acc=car.gtr?50:car.bmw?34:car.gle?32:car.gw?26:14+en*5,fw=canDrive&&holds.f.size>0,bk=canDrive&&holds.b.size>0,st=(holds.r.size>0?1:0)-(holds.l.size>0?1:0);
  car.cd-=dt;
  if(fw)car.sp+=(car.sp<0?40:acc*Math.max(0.05,1-car.sp/(maxS*1.05)))*dt;
  else if(bk){car.sp-=(car.sp>0.5?36:12)*dt;if(car.sp<-10)car.sp=-10;}
  else car.sp*=1-Math.min(1,0.5*dt);
  if(holds.rope.size>0&&!(car.gtr&&car.fly))car.sp*=1-Math.min(1,2.2*dt);
  car.sp=Math.min(car.sp,car.bmw?69.4:maxS);
- const grip=26+sp_*12+(car.bmw?40:0)+(car.gw?25:0)+(car.gtr?70:0);
+ const grip=26+sp_*12+(car.bmw?40:0)+(car.gw?25:0)+(car.gle?32:0)+(car.gtr?70:0);
  car.yaw-=st*Math.sign(car.sp)*Math.min(1,Math.abs(car.sp)/5)*(2.1/(1+Math.abs(car.sp)/grip))*dt;
  car.x+=Math.sin(car.yaw)*car.sp*dt;car.z+=Math.cos(car.yaw)*car.sp*dt;
  const Rr=2.2;
@@ -1740,7 +1741,7 @@ function carPhysics1(dt){
  carG.position.set(car.x,car.y||0,car.z);carG.rotation.y=car.yaw;if(car.gtr)carG.rotation.x=car.pt||0;
 }
 // GT-R jede ve 400+ km/h → fyziku dělíme na malé kroky, ať neprojede zdí
-function carPhysics(dt){const n=(car.gtr||car.bmw)?Math.max(1,Math.ceil(dt/0.008)):1;for(let i=0;i<n;i++)carPhysics1(dt/n);}
+function carPhysics(dt){const n=(car.gtr||car.bmw||car.gle)?Math.max(1,Math.ceil(dt/0.008)):1;for(let i=0;i<n;i++)carPhysics1(dt/n);}
 $('bcar').addEventListener('pointerdown',e=>{e.preventDefault();toggleCar();});
 window.addEventListener('keydown',e=>{if(e.code==='KeyG')toggleCar();if(e.code==='KeyV')togglePanel('c');});
 
@@ -1937,7 +1938,7 @@ function spawnGW(){
 }
 // 1 náhodný G-Wagon na mapě: nahradí náhodně vybrané zaparkované auto (náhodná barva)
 function spawnGWmap(){
- const ok=VEH.filter(v=>v.mode==='parked'&&!v.own&&!v.cop&&!v.gtr&&!v.bmw&&!v.gw);
+ const ok=VEH.filter(v=>v.mode==='parked'&&!v.own&&!v.cop&&!v.gtr&&!v.bmw&&!v.gw&&!v.gle);
  const near=ok.filter(v=>Math.abs(v.x)<450&&Math.abs(v.z)<330),pool=near.length?near:ok;
  if(!pool.length)return null;
  const s0=pool[Math.floor(Math.random()*pool.length)];
@@ -1947,12 +1948,71 @@ function spawnGWmap(){
  g.position.set(v.x,0,v.z);g.rotation.y=v.yaw;VEH.push(v);GW.map=v;return v;
 }
 spawnGWmap();
+// ===== MERCEDES-BENZ GLE COUPÉ: jen pro Kubu a Matýska (spawner Auta 🚘) =====
+const GLECOL=[['Obsidián černá',0x0d0e10],['Polar bílá',0xf2f2f2],['Selenit šedá',0x6b6f75],['Diamantová stříbrná',0xb7bbc1],['Rubínová červená',0x7b1e2b],['Námořní modrá',0x1d2f55],['Hnědá Dakota',0x4a3628]],GLE={v:null,c:0};
+const canGLE=()=>isCreator||(isHelper&&String(curName).toLowerCase()==='kuba');
+let GLE_G=null;
+function makeGLE(){
+ const g=new THREE.Group(),S=(c,r,m)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
+ const paint=S(GLECOL[GLE.c][1],0.22,0.65),carbon=S(0x15171a,0.5,0.3),chrome=S(0xc9ccd1,0.2,0.95),rim=S(0xb9bcc2,0.3,0.9),grill=S(0x08090b,0.6,0.2),drl=new THREE.MeshBasicMaterial({color:0xe8f4ff});
+ if(!GLE_G)GLE_G={wheel:new THREE.CylinderGeometry(0.42,0.42,0.34,20).rotateZ(Math.PI/2),rimg:new THREE.CylinderGeometry(0.31,0.31,0.36,16).rotateZ(Math.PI/2),star:new THREE.TorusGeometry(0.09,0.018,6,18),exh:new THREE.CylinderGeometry(0.06,0.06,0.2,12).rotateX(Math.PI/2)};
+ const G=GLE_G,add=(geo,m,x,y,z,sh)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);o.castShadow=!!sh;g.add(o);return o;};
+ const bx=(w,h,d,m,x,y,z)=>add(new THREE.BoxGeometry(w,h,d),m,x,y,z);
+ const o={depth:1.78,bevelEnabled:true,bevelThickness:0.1,bevelSize:0.09,bevelSegments:3,curveSegments:10};
+ const ex=(sh,op)=>{const q=new THREE.ExtrudeGeometry(sh,op);q.translate(0,0,-op.depth/2);q.rotateY(-Math.PI/2);return q;};
+ // spodní karoserie (boční profil, předek = +z)
+ const b=new THREE.Shape();b.moveTo(-2.45,0.34);b.lineTo(2.3,0.34);b.quadraticCurveTo(2.58,0.38,2.58,0.68);b.quadraticCurveTo(2.55,0.92,2.2,1.04);b.lineTo(1.0,1.18);b.lineTo(-1.2,1.2);b.lineTo(-2.1,1.22);b.quadraticCurveTo(-2.52,1.2,-2.57,0.95);b.quadraticCurveTo(-2.6,0.55,-2.45,0.34);
+ // kabina se svažující se coupé střechou
+ const c=new THREE.Shape();c.moveTo(1.05,1.16);c.lineTo(0.25,1.72);c.quadraticCurveTo(0.1,1.8,-0.2,1.8);c.lineTo(-0.85,1.8);c.quadraticCurveTo(-1.6,1.72,-2.22,1.22);c.lineTo(1.05,1.16);
+ add(ex(b,o),paint,0,0,0,1);add(ex(c,Object.assign({},o,{depth:1.55,bevelSize:0.06,bevelThickness:0.08})),GM.glass,0,0,0);
+ bx(1.28,0.05,1.3,paint,0,1.83,-0.55);                       // lakovaná střecha
+ bx(1.45,0.05,0.28,carbon,0,1.27,-2.3);                      // zadní lip spoiler
+ bx(1.8,0.05,0.4,carbon,0,0.34,2.3);                          // přední splitter
+ // maska Mercedes (chromové lamely) + hvězda
+ bx(0.96,0.36,0.07,grill,0,0.7,2.59);
+ for(let i=-3;i<=3;i++)bx(0.03,0.3,0.075,chrome,i*0.14,0.7,2.595);
+ add(G.star,chrome,0,0.7,2.64);
+ bx(1.3,0.14,0.07,grill,0,0.46,2.58);                         // spodní nasávání
+ bx(1.6,0.04,0.06,carbon,0,0.37,2.56);
+ [-1,1].forEach(s_=>{
+  bx(0.52,0.09,0.08,drl,s_*0.7,0.95,2.43);bx(0.2,0.05,0.07,drl,s_*0.5,0.86,2.46);   // LED světla
+  bx(0.08,0.1,2.7,carbon,s_*1.0,0.42,0);                     // prahy
+  bx(0.14,0.1,0.22,paint,s_*1.05,1.2,0.95);                  // zrcátka
+  bx(0.12,0.1,1.1,carbon,s_*1.0,0.86,1.45);bx(0.12,0.1,1.1,carbon,s_*1.0,0.86,-1.45); // lemy blatníků
+  bx(0.36,0.14,0.07,GM.tl,s_*0.78,1.0,-2.6);                 // zadní světla
+  add(G.exh,chrome,s_*0.6,0.45,-2.62);                       // koncovky výfuku
+ });
+ bx(0.9,0.05,0.06,GM.tl,0,1.02,-2.6);                         // spojovací LED pás
+ [[-0.97,1.45],[0.97,1.45],[-0.97,-1.45],[0.97,-1.45]].forEach(w=>{add(G.wheel,GM.tire,w[0],0.42,w[1]);add(G.rimg,rim,w[0],0.42,w[1]);});
+ g.userData.paint=paint;return g;
+}
+function removeGLE(){const v=GLE.v;if(!v)return;if(drv&&car===v)exitCar(true);scene.remove(v.g);const i=VEH.indexOf(v);if(i>=0)VEH.splice(i,1);GLE.v=null;}
+function spawnGLE(){
+ if(!canGLE()){toast('Mercedes GLE Coupé je jen pro Kubu a Matýska.',2200);return false;}
+ const cur=GLE.v;if(cur&&drv&&car===cur){toast('Nejdřív vystup z GLE.',1800);return false;}
+ const px=P.pos.x,pz=P.pos.z,yaw=P.yaw;let pos=null;
+ for(const a of [0,0.9,-0.9,1.8,-1.8,3.14]){
+  const x=px+Math.sin(yaw+a)*8,z=pz+Math.cos(yaw+a)*8;
+  if(x<MB.x0+5||x>MB.x1-5||Math.abs(z)>MB.z-5)continue;
+  let ok=true;for(const b of boxes){if(b.min.y>1)continue;if(x>b.min.x-3&&x<b.max.x+3&&z>b.min.z-3&&z<b.max.z+3){ok=false;break;}}
+  if(ok)for(const w of VEH){if(w!==cur&&Math.hypot(w.x-x,w.z-z)<5){ok=false;break;}}
+  if(ok){pos=[x,z];break;}
+ }
+ if(!pos)pos=[px+Math.sin(yaw)*8,pz+Math.cos(yaw)*8];
+ if(!cur){const g=makeGLE();scene.add(g);const v={x:pos[0],z:pos[1],lz:pos[1],yaw,sp:0,hp:220,cd:0,stun:0,mode:'parked',v:0,g,gle:true};VEH.push(v);GLE.v=v;}
+ else{cur.x=pos[0];cur.z=pos[1];cur.lz=pos[1];cur.yaw=yaw;cur.sp=0;cur.hp=220;cur.mode='parked';}
+ GLE.v.g.userData.paint.color.setHex(GLECOL[GLE.c][1]);
+ GLE.v.g.position.set(GLE.v.x,0,GLE.v.z);GLE.v.g.rotation.y=GLE.v.yaw;
+ toast('Mercedes GLE Coupé je před tebou – nastup (Auto / G).',2600);return true;
+}
 function renderSpawn(){
  const dots=(arr,cur,at)=>arr.map((c,i)=>'<button data-'+at+'="'+i+'" title="'+c[0]+'" style="width:44px;height:44px;padding:0;border-radius:50%;background:#'+c[1].toString(16).padStart(6,'0')+';border:3px solid '+(cur===i?'#fff':'#ffffff33')+'"></button>').join('');
  let h='<h2>Spawn aut</h2><button class="mc" id="spm4"><b>BMW M4 CSL</b><small>Rychlé kupé · 150 HP · zdarma · objeví se před tebou · barva: '+BMCOL[BMW.c][0]+'</small></button>'+
  '<div style="margin:6px 0 4px;font-size:14px"><b>Barva BMW</b></div><div class="row">'+dots(BMCOL,BMW.c,'bc')+'</div>'+
  '<button class="mc" id="spgw" style="margin-top:10px"><b>Mercedes-Benz G 63 AMG (G-Wagon)</b><small>Terénní luxus · 250 HP · zdarma · objeví se před tebou · barva: '+GWCOL[GW.c][0]+'</small></button>'+
  '<div style="margin:6px 0 4px;font-size:14px"><b>Barva G-Wagonu</b></div><div class="row">'+dots(GWCOL,GW.c,'wc')+'</div>';
+ if(canGLE())h+='<button class="mc" id="spgle" style="margin-top:10px"><b>Mercedes-Benz GLE Coupé</b><small>Luxusní SUV kupé · 220 HP · zdarma · jen pro Kubu a Matýska · barva: '+GLECOL[GLE.c][0]+'</small></button>'+
+ '<div style="margin:6px 0 4px;font-size:14px"><b>Barva GLE</b></div><div class="row">'+dots(GLECOL,GLE.c,'lc')+'</div>';
  if(isCreator)h+='<button class="mc" id="spgtr" style="margin-top:10px"><b>Nissan GT-R se spoilerem 👑</b><small>Supersport · 10 000 HP · 400+ km/h · fialové neony · vzlet na T · jen pro Matýska · barva: '+GTCOL[GTR.c][0]+'</small></button>'+
  '<div style="margin:6px 0 4px;font-size:14px"><b>Barva GT-R</b></div><div class="row">'+dots(GTCOL,GTR.c,'gc')+'</div>';
  h+='<p style="font-size:13px;color:#ffd166">'+gmsg+'</p><div class="row"><button id="bcl">Zavřít</button></div>';
@@ -1961,6 +2021,10 @@ function renderSpawn(){
  panel.querySelectorAll('[data-bc]').forEach(b=>b.onclick=()=>{BMW.c=+b.dataset.bc;if(BMW.v)BMW.v.g.userData.paint.color.setHex(BMCOL[BMW.c][1]);gmsg='';renderPanel();});
  $('spgw').onclick=()=>{gmsg='';if(spawnGW()){panel.hidden=true;paused=false;}else{gmsg='Nejdřív vystup z G-Wagonu.';renderPanel();}};
  panel.querySelectorAll('[data-wc]').forEach(b=>b.onclick=()=>{GW.c=+b.dataset.wc;if(GW.v)GW.v.g.userData.paint.color.setHex(GWCOL[GW.c][1]);gmsg='';renderPanel();});
+ if(canGLE()){
+  $('spgle').onclick=()=>{gmsg='';if(spawnGLE()){panel.hidden=true;paused=false;}else{gmsg='Nejdřív vystup z GLE.';renderPanel();}};
+  panel.querySelectorAll('[data-lc]').forEach(b=>b.onclick=()=>{GLE.c=+b.dataset.lc;if(GLE.v)GLE.v.g.userData.paint.color.setHex(GLECOL[GLE.c][1]);gmsg='';renderPanel();});
+ }
  if(isCreator){
   $('spgtr').onclick=()=>{gmsg='';if(spawnGTR()){panel.hidden=true;paused=false;}else{gmsg='Nejdřív vystup z GT-R.';renderPanel();}};
   panel.querySelectorAll('[data-gc]').forEach(b=>b.onclick=()=>{GTR.c=+b.dataset.gc;if(GTR.v)GTR.v.g.userData.paint.color.setHex(GTCOL[GTR.c][1]);gmsg='';renderPanel();});
@@ -2317,8 +2381,9 @@ function loop(now){
 // ===== LOGIN / CREATOR =====
 // Změna hesla: v konzoli prohlížeče spusť  sha256('jmeno:heslo')  a výsledek vlož do CREATOR_HASH.
 const CREATOR_NAME='matysek';
-const HELPER_NAME='nazik';
-const HELPER_HASH='08c137af19c0378d10007a5dd524d59797e635b178260d4b7356df3cb2384a22';
+// Helper účty: jméno (malými písmeny) -> sha256('jmeno:heslo')
+const HELPERS={nazik:'08c137af19c0378d10007a5dd524d59797e635b178260d4b7356df3cb2384a22',kuba:'ef4afa1b05cac2c2623a0a5c422d29a2d4f52e9586e2f1bb2cd7374b2020c68c',havri:'28ee7e946f3327ebc742948b5e4cbf5cab072b0605631f58a0a01b4ed7fd4253'};
+const isHelperName=n=>Object.prototype.hasOwnProperty.call(HELPERS,String(n).toLowerCase());
 const CREATOR_HASH='3e27c7ca3f5bd42636e743e906278057ee13f8791fbf086bb72ba178fa1f8bfe';
 function sha256(str){
  const m=new TextEncoder().encode(str),l=m.length,n=((l+9+63)>>6)<<6,b=new Uint8Array(n);b.set(m);b[l]=0x80;
@@ -2352,12 +2417,12 @@ function setSkin(owner,hp){
 function showLogin(){setSkin(false);Object.values(holds).forEach(x=>x.clear());$('st').hidden=true;rebind=null;curName='';$('panel').hidden=true;hk.hidden=true;paused=true;lp.value='';lerr.textContent='';loginEl.hidden=false;}
 function enter(creator,name,helper){
  isCreator=creator;isHelper=!!helper;curName=name;setSkin(creator,helper);Object.assign(CH,CH0);
- $('bhk').hidden=!(creator||helper);$('bspawn').hidden=!(creator||helper);if(!(creator||helper)){removeM4();removeGW();}if(!creator)removeGTR();$('btod').hidden=!(creator||helper);if(!(creator||helper))todReset();
+ $('bhk').hidden=!(creator||helper);$('bspawn').hidden=!(creator||helper);if(!(creator||helper)){removeM4();removeGW();}if(!creator)removeGTR();if(!canGLE())removeGLE();$('btod').hidden=!(creator||helper);if(!(creator||helper))todReset();
  try{localStorage.setItem('rr3d_name',name);}catch(_){}
  loginEl.hidden=true;paused=false;lp.value='';if(homeId)respawn();mpConnect();mpAuth();
  toast(creator?'Přihlášen: '+name+' 👑 (Hack menu odemčeno)':'Ahoj, '+(name||'hráči')+'!');
 }
-function logout(){MP.pass='';MP.admin=false;$('bpl').hidden=true;if(MP.ws)MP.ws.close();isCreator=false;isHelper=false;Object.assign(CH,CH0);$('bhk').hidden=true;$('bspawn').hidden=true;removeM4();removeGW();removeGTR();$('btod').hidden=true;todReset();showLogin();}
+function logout(){MP.pass='';MP.admin=false;$('bpl').hidden=true;if(MP.ws)MP.ws.close();isCreator=false;isHelper=false;Object.assign(CH,CH0);$('bhk').hidden=true;$('bspawn').hidden=true;removeM4();removeGW();removeGTR();removeGLE();$('btod').hidden=true;todReset();showLogin();}
 let fails=0,lockUntil=0;
 async function tryLogin(){
  const name=lu.value.trim(),now=Date.now();
@@ -2365,12 +2430,12 @@ async function tryLogin(){
  if(!name||!lp.value){lerr.textContent='Zadej jméno i heslo, nebo hraj jako host.';return;}
  const h=sha256(name.toLowerCase()+':'+lp.value);
  if(name.toLowerCase()===CREATOR_NAME&&h===CREATOR_HASH){fails=0;MP.pass=lp.value;enter(true,name);}
- else if(name.toLowerCase()===HELPER_NAME&&h===HELPER_HASH){fails=0;enter(false,name,true);}
+ else if(isHelperName(name)&&h===HELPERS[name.toLowerCase()]){fails=0;enter(false,name,true);}
  else{fails++;lerr.textContent='Špatné jméno nebo heslo.';lp.value='';if(fails>=3){lockUntil=Date.now()+Math.min(30000,(fails-2)*5000);}}
 }
 $('lgo').onclick=tryLogin;
 lp.addEventListener('keydown',e=>{if(e.key==='Enter')tryLogin();});
-$('lguest').onclick=()=>{const n=lu.value.trim();if(n.toLowerCase()===CREATOR_NAME||n.toLowerCase()===HELPER_NAME){lerr.textContent='Toto jméno je rezervované pro creatora.';return;}enter(false,n);};
+$('lguest').onclick=()=>{const n=lu.value.trim();if(n.toLowerCase()===CREATOR_NAME||isHelperName(n)){lerr.textContent='Toto jméno je rezervované pro creatora.';return;}enter(false,n);};
 showLogin();
 
 // ===== NASTAVENÍ =====

@@ -70,7 +70,7 @@ let nextId = 1;
 const clients = new Map();
 
 // ===== Spolujízda: do každého auta se vejdou 4 lidé (včetně řidiče), do G-Wagonu 6, do GT-R jen 2 =====
-const VEH_KINDS = ['std', 'm4', 'gtr', 'gw'];
+const VEH_KINDS = ['std', 'm4', 'gtr', 'gw', 'gle'];
 const seatCap = d => (d.veh && d.veh.k === 'gtr') ? 2 : (d.veh && d.veh.k === 'gw') ? 6 : 4;
 
 function sendTo(ws, obj) {
@@ -351,7 +351,7 @@ wss.on('connection', ws => {
 
       // auto, ve kterém hráč právě jede (vidí ho ostatní)
       const v = m.veh;
-      if (v && typeof v === 'object' && VEH_KINDS.includes(v.k) && (v.k !== 'gtr' || p.admin || p.gtrOk)) {
+      if (v && typeof v === 'object' && VEH_KINDS.includes(v.k) && (v.k !== 'gtr' || p.admin || p.gtrOk) && (v.k !== 'gle' || p.admin || titleKey(p.name) === 'kuba')) {
         const pt = Number(v.pt);
         p.veh = {
           k: v.k,
