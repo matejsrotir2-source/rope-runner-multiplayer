@@ -38,7 +38,8 @@ const server = http.createServer((req, res) => {
       }
 
       res.writeHead(200, {
-        'Content-Type': 'text/html; charset=utf-8'
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-cache' // hráči po updatu hned dostanou novou verzi hry
       });
       res.end(data);
     });
