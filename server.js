@@ -11,8 +11,9 @@ const GAME_FILE = path.join(__dirname, 'Rope_Runner_3D_Multiplayer.html');
 // Admin (Matýsek) – heslo se ověřuje tady na serveru. Hash můžeš přepsat proměnnou ADMIN_HASH.
 const ADMIN_NAME = 'matysek';
 const ADMIN_HASH = process.env.ADMIN_HASH || '3e27c7ca3f5bd42636e743e906278057ee13f8791fbf086bb72ba178fa1f8bfe';
-const WEAPON_IDS = ['knife', 'bat', 'pistol', 'revolver', 'smg', 'sword', 'shotgun', 'rifle', 'sniper', 'bazooka', 'minigun'];
+const WEAPON_IDS = ['knife', 'bat', 'pistol', 'revolver', 'smg', 'sword', 'shotgun', 'rifle', 'sniper', 'bazooka', 'minigun', 'spray'];
 const SKIN_IDS = ['gold', 'neon', 'lava', 'ice', 'ghost'];
+const SPRAYS = {}; // graffiti podle místnosti (posledních 800) – novým hráčům se pošlou po připojení
 
 // Tituly nad hlavou (Matýsek je přidává/odebírá) – ukládají se podle jména do titles.json, platí dokud je admin neodebere
 const TITLES_FILE = path.join(__dirname, 'titles.json');
@@ -168,6 +169,7 @@ wss.on('connection', ws => {
       p.noDrive = NODRIVE.has(titleKey(p.name));
       p.gtrOk = false; // GT-R se povoluje jen dočasně (do odpojení)
       if (p.noDrive) sendTo(ws, { type: 'grant', kind: 'drive', value: false });
+      if ((SPRAYS[p.room] || []).length) sendTo(ws, { type: 'spraylog', list: SPRAYS[p.room] });
       broadcast();
 
     } else if (m.type === 'auth' && p.joined) {
@@ -191,9 +193,35 @@ wss.on('connection', ws => {
     } else if (m.type === 'myskin' && p.joined) {
       // vlastní skin – může si ho změnit kdokoli (jen běžné skiny, ne creator/developer)
       const v = m.value === null || m.value === undefined || m.value === '' ? null : String(m.value);
-      if (v !== null && !SKIN_IDS.includes(v)) return;
+      if (v !== null && !SKIN_IDS.includes(v) && !(v === 'helper' && p.admin)) return;
       p.mySkin = v;
       broadcast();
+
+    } else if (m.type === 'spray' && p.joined) {
+      const now = Date.now();
+      if (now - (p.sprayT || 0) < 30) return;
+      p.sprayT = now;
+      const v = ['x', 'y', 'z', 'nx', 'ny', 'nz', 's'].map(k => Number(m[k]));
+      if (!v.every(Number.isFinite)) return;
+      if (Math.abs(v[0]) > 5000 || Math.abs(v[1]) > 1000 || Math.abs(v[2]) > 5000) return;
+      if (Math.abs(v[3]) > 1.01 || Math.abs(v[4]) > 1.01 || Math.abs(v[5]) > 1.01) return;
+      const item = {
+        type: 'spray', x: v[0], y: v[1], z: v[2], nx: v[3], ny: v[4], nz: v[5],
+        c: /^#[0-9a-f]{6}$/i.test(String(m.c || '')) ? String(m.c) : '#ff2a2a',
+        s: Math.max(0.1, Math.min(2, v[6]))
+      };
+      const list = SPRAYS[p.room] = SPRAYS[p.room] || [];
+      list.push(item);
+      if (list.length > 800) list.shift();
+      for (const [tws, t] of clients) {
+        if (t.joined && t !== p && t.room === p.room) sendTo(tws, item);
+      }
+
+    } else if (m.type === 'spraycls' && p.admin) {
+      SPRAYS[p.room] = [];
+      for (const [tws, t] of clients) {
+        if (t.joined && t.room === p.room) sendTo(tws, { type: 'spraycls' });
+      }
 
     } else if (m.type === 'grant' && p.admin) {
       const kind = m.kind;

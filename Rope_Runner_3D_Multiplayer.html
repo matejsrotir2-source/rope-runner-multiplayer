@@ -150,10 +150,12 @@ const WEAPONS=[
 {id:'rifle',name:'Útočná puška',price:1800,desc:'Přesná střelba na střední vzdálenost.'},
 {id:'sniper',name:'Odstřelovačka',price:2500,desc:'Obrovská síla, dosah přes půl mapy.'},
 {id:'bazooka',name:'Bazuka',price:3000,desc:'Těžká váha, velký třesk.'},
+{id:'spray',name:'Sprej',price:0,desc:'Sprejuj graffiti na zdi i na zem. Drž střelbu (X / tlačítko).'},
 {id:'minigun',name:'Minigun',price:1000000,desc:'Palebná smršť. Jen pro skutečné bankovní lupiče.'}];
 let money=0,owned=['fist'],equipped='fist',combo=0;const TUNE={armor:0,engine:0,spoiler:0,color:0,neon:0,fin:0};
 try{const sv0=JSON.parse(localStorage.getItem('rr3d')||'null');if(sv0&&sv0.t)Object.assign(TUNE,sv0.t);}catch(_){}
 try{const sv=JSON.parse(localStorage.getItem('rr3d')||'null');if(sv){money=sv.m|0;owned=sv.o||owned;equipped=sv.e||equipped;}}catch(_){}
+if(!owned.includes('spray'))owned.push('spray');
 const SESS={money:0,weapons:[],skin:null,aim:false};
 function save(){try{localStorage.setItem('rr3d',JSON.stringify({m:Math.max(0,money-SESS.money),o:owned.filter(x=>!SESS.weapons.includes(x)),e:SESS.weapons.includes(equipped)?'fist':equipped,t:TUNE}));}catch(_){}}
 var PHX=[];function addMoney(n){money=(typeof CH!=='undefined'&&CH.rich)?99999999:money+n;try{if(n){PHX.push([Date.now(),n,n>0?'Příjem':'Výdaj']);if(PHX.length>40)PHX.shift();}}catch(_){}save();}
@@ -564,6 +566,7 @@ function weaponModel(id){
   shotgun:()=>{cy(steel,0.022,0.022,0.75,0,0.06,0.38);cy(steel,0.02,0.02,0.4,0,0.02,0.25);bx(wood,0.05,0.06,0.16,0,0.015,0.25);bx(steel,0.06,0.09,0.2,0,0.05,0);bx(wood,0.055,0.11,0.3,0,0.0,-0.22,-0.12);},
   sniper:()=>{cy(steel,0.015,0.015,0.85,0,0.06,0.5);bx(steel,0.06,0.09,0.4,0,0.05,0.05);cy(dark,0.03,0.03,0.26,0,0.15,0.1);cy(S(0x66ccff,0.2,0.1),0.032,0.032,0.01,0,0.15,0.235);bx(wood,0.055,0.12,0.3,0,0.0,-0.25,-0.1);bx(dark,0.03,0.14,0.05,0,-0.07,0.06);},
   bazooka:()=>{cy(olive,0.09,0.09,1.1,0,0.1,0.35);cy(dark,0.11,0.07,0.12,0,0.1,-0.25);cy(dark,0.095,0.095,0.05,0,0.1,0.92);bx(dark,0.04,0.12,0.05,0,-0.02,0.2);bx(dark,0.03,0.05,0.2,0,0.23,0.3);},
+  spray:()=>{const can=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.17,14),S(0xd9d9df,0.6,0.35));can.position.set(0,0.07,0.1);g.add(can);const band=new THREE.Mesh(new THREE.CylinderGeometry(0.0365,0.0365,0.07,14),S(0xe0332f,0.3,0.5));band.position.set(0,0.07,0.1);g.add(band);const top=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.035,0.03,14),dark);top.position.set(0,0.165,0.1);g.add(top);bx(dark,0.016,0.02,0.03,0,0.19,0.115);},
   minigun:()=>{cy(steel,0.1,0.1,0.2,0,0.05,0.05);cy(dark,0.12,0.12,0.04,0,0.05,0.2);for(let i=0;i<6;i++){const a=i/6*Math.PI*2;cy(steel,0.017,0.017,0.5,Math.cos(a)*0.065,0.05+Math.sin(a)*0.065,0.45);}cy(dark,0.09,0.09,0.03,0,0.05,0.7);bx(dark,0.05,0.14,0.05,0,-0.07,0.0);bx(olive,0.14,0.14,0.2,0,0.0,-0.12);}
  };
  if(W[id])W[id]();g.traverse(o=>{if(o.isMesh)o.castShadow=true;});WMOD[id]=g;return g;
@@ -727,13 +730,14 @@ const holds={l:new Set(),r:new Set(),rope:new Set(),f:new Set(),b:new Set(),aim:
 
 // ===== ONLINE MULTIPLAYER =====
 // Players share one world. Movement is synchronized; missions/vehicles/combat remain local in this first version.
-const SKINS={gold:{n:'Zlatý',suit:0xc99a00,emi:0x3a2a00,gold:0xffffff,dark:0x2a1a00},neon:{n:'Neon',suit:0x00e676,emi:0x003d1f,gold:0xff2bd6,dark:0x001a10},lava:{n:'Láva',suit:0xff4500,emi:0x4a1200,gold:0xffd000,dark:0x1a0600},ice:{n:'Led',suit:0x8fe3ff,emi:0x10303a,gold:0xffffff,dark:0x16394d},ghost:{n:'Duch',suit:0xe8e8f0,emi:0x303040,gold:0x9aa0ff,dark:0x55556a},owner:{n:'Creator',suit:0x3a1478,emi:0x1c0a40,gold:0x35e0ff,dark:0x07050f,crown:true}};
+const SKINS={gold:{n:'Zlatý',suit:0xc99a00,emi:0x3a2a00,gold:0xffffff,dark:0x2a1a00},neon:{n:'Neon',suit:0x00e676,emi:0x003d1f,gold:0xff2bd6,dark:0x001a10},lava:{n:'Láva',suit:0xff4500,emi:0x4a1200,gold:0xffd000,dark:0x1a0600},ice:{n:'Led',suit:0x8fe3ff,emi:0x10303a,gold:0xffffff,dark:0x16394d},ghost:{n:'Duch',suit:0xe8e8f0,emi:0x303040,gold:0x9aa0ff,dark:0x55556a},owner:{n:'Creator',suit:0x3a1478,emi:0x1c0a40,gold:0x35e0ff,dark:0x07050f,crown:true},helper:{n:'Nazik 🛠',suit:0xd62839,emi:0x4a0a10,gold:0xffb703,dark:0x1a0a0a}};
 const SKIN_DEF={suit:0x2ec4b6,emi:0x000000,gold:0xffd166,dark:0x0e1a2e};
 // Vlastní skin (volí si každý) – jen běžné skiny, bez 'owner' (Creator) a bez helper/developer vzhledu
 const MY_SKINS=['gold','neon','lava','ice','ghost'];
-let MYSKIN=null;try{const k=localStorage.getItem('rr3d_skin');if(MY_SKINS.includes(k))MYSKIN=k;}catch(_){}
+let MYSKIN=null;try{const k=localStorage.getItem('rr3d_skin');if(MY_SKINS.includes(k)||k==='helper')MYSKIN=k;}catch(_){}
+const okSkin=k=>MY_SKINS.includes(k)||(k==='helper'&&(()=>{try{return isCreator;}catch(_){return false;}})());
 function mpAuth(){try{if(isCreator&&MP.pass&&!MP.admin&&MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify({type:'auth',name:curName,pass:MP.pass}));}catch(_){}}
-function sendMySkin(){try{if(MP&&MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify({type:'myskin',value:MYSKIN}));}catch(_){}}
+function sendMySkin(){try{if(MP&&MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify({type:'myskin',value:okSkin(MYSKIN)?MYSKIN:null}));}catch(_){}}
 function paint(h,s){const m=h.mats;m.suit.color.set(s.suit);m.suit.emissive.set(s.emi);m.gold.color.set(s.gold);m.gold.emissive.set(0);m.dark.color.set(s.dark);h.crown.visible=!!s.crown;}
 let canDrive=true,banW=0;
 function clearGrants(){canDrive=true;if(!isCreator)removeGTR();
@@ -774,7 +778,7 @@ function renderAdm(){
   +'<button data-g="money" data-v="1000" data-id="'+id+'">+$1000</button><button data-g="money" data-v="10000" data-id="'+id+'">+$10000</button>'
   +'<select data-w="'+id+'">'+WEAPONS.filter(w=>w.id!=='fist').map(w=>'<option value="'+w.id+'">'+w.name+'</option>').join('')+'</select><button data-gw="'+id+'">Dát zbraň</button>'
   +'<button data-g="aim" data-v="1" data-id="'+id+'">Aimbot ON</button><button data-g="aim" data-v="0" data-id="'+id+'">Aimbot OFF</button>'
-  +'<select data-s="'+id+'"><option value="">bez skinu</option>'+Object.keys(SKINS).filter(k=>k!=='owner').map(k=>'<option value="'+k+'">'+SKINS[k].n+'</option>').join('')+'</select><button data-gs="'+id+'">Dát skin</button>'
+  +'<select data-s="'+id+'"><option value="">bez skinu</option>'+Object.keys(SKINS).filter(k=>k!=='owner'&&k!=='helper').map(k=>'<option value="'+k+'">'+SKINS[k].n+'</option>').join('')+'</select><button data-gs="'+id+'">Dát skin</button>'
   +driveUI(id,q)+gtrUI(id,q)+(id==='all'?'':titleUI(id))+'</div></div>').join('');
  const send=(to,kind,value)=>{if(MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify({type:'grant',to,kind,value}));};
  adm.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{const k=b.dataset.g;send(b.dataset.id,k,k==='aim'?b.dataset.v==='1':+b.dataset.v);});
@@ -803,11 +807,14 @@ function mpConnect(){
   ws.addEventListener('message',ev=>{
    let m;try{m=JSON.parse(ev.data)}catch(_){return}
    if(m.type==='chat'){chatAdd(m);return;}
+   if(m.type==='spray'){addDecal(m);return;}
+   if(m.type==='spraylog'){if(Array.isArray(m.list))m.list.forEach(addDecal);return;}
+   if(m.type==='spraycls'){clearDecals();return;}
    if(m.type==='grant'){applyGrant(m);return;}
    if(m.type==='ride'){if(m.ok){RIDE={id:String(m.id),seat:+m.seat||1,cap:+m.cap||4};P.rope=null;T.dur=0;toast('Nastoupil jsi jako spolujezdec 👥 ('+(+m.seat+1||2)+'/'+RIDE.cap+') · Auto / G = vystoupit',2800);}else rideEnd(m.reason);return;}
    if(m.type==='pay'||m.type==='payok'||m.type==='payfail'){if(window.phoneMsg)phoneMsg(m);return;}
    if(m.type==='admin'&&!m.ok){toast('Admin ověření selhalo – špatné heslo nebo jiný ADMIN_HASH na serveru',4500);return;}
-   if(m.type==='admin'&&m.ok){MP.admin=true;$('bpl').hidden=false;toast('Admin práva na hráče aktivní',2000);return;}
+   if(m.type==='admin'&&m.ok){MP.admin=true;$('bpl').hidden=false;sendMySkin();toast('Admin práva na hráče aktivní',2000);return;}
    if(m.type==='snapshot'&&Array.isArray(m.players)){
     const seen=new Set();
     for(const p of m.players){if(p&&p.id===m.id){const n=p.pax|0;if(n!==MP.pax){if(drv&&n>MP.pax)toast('Do auta nastoupil spolujezdec 👥 ('+(n+1)+'/'+(car&&car.gtr?2:car&&car.gw?6:4)+')',2000);else if(drv&&n<MP.pax)toast('Spolujezdec vystoupil ('+(n+1)+'/'+(car&&car.gtr?2:car&&car.gw?6:4)+')',1500);MP.pax=n;}applyTitle(MP.me,hero.g,p.title);}if(!p||p.id===m.id||typeof p.id!=='string')continue;seen.add(p.id);let q=MP.players.get(p.id);
@@ -1111,7 +1118,7 @@ function findAnchor(){
 }
 const angDiff=(a,b)=>{let d=a-b;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;};
 const ov=$('ov'),hk=$('hk');let aimOn=false,fireCd=0,hkTab=0;const aim={pitch:0};
-const WS={fist:{d:15,r:0.45,rg:3.5},knife:{d:38,r:0.28,rg:3},bat:{d:50,r:0.55,rg:4},sword:{d:65,r:0.5,rg:4},pistol:{d:34,r:0.3,rg:170},revolver:{d:75,r:0.8,rg:190},smg:{d:16,r:0.09,rg:150},rifle:{d:28,r:0.12,rg:230},shotgun:{d:20,r:0.8,rg:60,n:7,sp:0.08},sniper:{d:170,r:1.4,rg:480},bazooka:{d:200,r:1.4,rg:230},minigun:{d:11,r:0.04,rg:150,sp:0.035}};
+const WS={fist:{d:15,r:0.45,rg:3.5},knife:{d:38,r:0.28,rg:3},bat:{d:50,r:0.55,rg:4},sword:{d:65,r:0.5,rg:4},pistol:{d:34,r:0.3,rg:170},revolver:{d:75,r:0.8,rg:190},smg:{d:16,r:0.09,rg:150},rifle:{d:28,r:0.12,rg:230},shotgun:{d:20,r:0.8,rg:60,n:7,sp:0.08},sniper:{d:170,r:1.4,rg:480},bazooka:{d:200,r:1.4,rg:230},minigun:{d:11,r:0.04,rg:150,sp:0.035},spray:{d:0,r:0.06,rg:3}};
 const HT=[
 {n:'AIM',d:'Aimbot míří na lidi ve hře. Aktivace určuje, kdy běží.',i:[{k:'aim',l:'Aimbot (lidé)',v:[false,true]},{k:'act',l:'Aim activation',v:['ADS','Vždy']},{k:'bone',l:'Aim bone',v:['Head','Chest']},{k:'smooth',l:'Aim smooth',v:[1,3,6,10]},{k:'vis',l:'Visibility check',v:[true,false]},{k:'prio',l:'Target priority',v:['Crosshair','Distance']}]},
 {n:'AIM FOV',d:'Kruh, ve kterém aimbot hledá cíle.',i:[{k:'fov',l:'FOV radius (px)',v:[140,80,220,400]},{k:'showfov',l:'Zobrazit kruh',v:[false,true]}]},
@@ -1242,8 +1249,44 @@ function hurt(n,d,head,pt){
  if(n.hp<=0){n.alive=false;n.t=0;const m=new THREE.Mesh(poolG,poolMat);m.rotation.x=-Math.PI/2;m.position.set(n.g.position.x,0.07,n.g.position.z);scene.add(m);n.pool=m;
   const g=n.civ?0:(head?100:50)*(n.guard?3:1);if(g){addMoney(g);toast((head?'Headshot':'Zásah')+' +$'+g,1000);}}
 }
+// ===== SPREJ / GRAFFITI =====
+const SPR={col:0,list:[['Červená','#ff2a2a'],['Oranžová','#ff9a1f'],['Žlutá','#ffe14a'],['Zelená','#39e06a'],['Azurová','#35e0ff'],['Modrá','#3b6dff'],['Fialová','#a56bff'],['Růžová','#ff4fd8'],['Bílá','#ffffff'],['Černá','#111111']]};
+try{const c=+localStorage.getItem('rr3d_sprc');if(c>=0&&c<SPR.list.length)SPR.col=c|0;}catch(_){}
+const DEC={max:700,i:0,list:[],geo:null,tex:null,mats:{}};
+function decalTex(){if(DEC.tex)return DEC.tex;const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d'),gr=g.createRadialGradient(32,32,2,32,32,31);gr.addColorStop(0,'rgba(255,255,255,0.95)');gr.addColorStop(0.55,'rgba(255,255,255,0.55)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,64,64);DEC.tex=new THREE.CanvasTexture(c);return DEC.tex;}
+function decalMat(col){return DEC.mats[col]||(DEC.mats[col]=new THREE.MeshBasicMaterial({map:decalTex(),color:new THREE.Color(col),transparent:true,depthWrite:false,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}));}
+function addDecal(m){
+ if(!m)return;const x=+m.x,y=+m.y,z=+m.z,nx=+m.nx,ny=+m.ny,nz=+m.nz;
+ if(![x,y,z,nx,ny,nz].every(Number.isFinite))return;
+ const n=new THREE.Vector3(nx,ny,nz);if(n.lengthSq()<0.01)return;n.normalize();
+ const col=/^#[0-9a-f]{6}$/i.test(String(m.c))?String(m.c):'#ff2a2a',s=Math.max(0.1,Math.min(2,+m.s||0.5));
+ if(!DEC.geo)DEC.geo=new THREE.PlaneGeometry(1,1);
+ let o;
+ if(DEC.list.length<DEC.max){o=new THREE.Mesh(DEC.geo,decalMat(col));o.renderOrder=2;scene.add(o);DEC.list.push(o);}
+ else{o=DEC.list[DEC.i];DEC.i=(DEC.i+1)%DEC.max;o.material=decalMat(col);}
+ o.position.set(x,y,z);o.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),n);o.scale.setScalar(s);
+}
+function clearDecals(){DEC.list.forEach(o=>scene.remove(o));DEC.list.length=0;DEC.i=0;}
+function sprayShot(){
+ camera.updateMatrixWorld();
+ const o=camera.position.clone(),d=new V3();camera.getWorldDirection(d);
+ d.x+=(Math.random()-0.5)*0.015;d.y+=(Math.random()-0.5)*0.015;d.z+=(Math.random()-0.5)*0.015;d.normalize();
+ let t=60,face=null,gnd=false;
+ for(const b of boxes){const tt=rayBox(o,d,b,t);if(tt>0&&tt<t){t=tt;face=b;}}
+ if(d.y<-1e-4){const tg=-o.y/d.y;if(tg>0.01&&tg<t){t=tg;gnd=true;face=null;}}
+ if(!face&&!gnd)return;
+ const p=o.clone().addScaledVector(d,t);let n;
+ if(gnd){n=new V3(0,1,0);p.y=0.12;}
+ else{let best=1e9,ax='x',sg=1;for(const a of ['x','y','z']){const lo=Math.abs(p[a]-face.min[a]),hi=Math.abs(p[a]-face.max[a]);if(lo<best){best=lo;ax=a;sg=-1;}if(hi<best){best=hi;ax=a;sg=1;}}
+  n=new V3(0,0,0);n[ax]=sg;p.addScaledVector(n,0.03);}
+ const s=Math.min(1.2,0.3+t*0.02)*(0.8+Math.random()*0.4);
+ const r2=v=>Math.round(v*100)/100,msg={x:r2(p.x),y:r2(p.y),z:r2(p.z),nx:n.x,ny:n.y,nz:n.z,c:SPR.list[SPR.col][1],s:r2(s)};
+ addDecal(msg);
+ try{if(MP&&MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify(Object.assign({type:'spray'},msg)));}catch(_){}
+}
 function fire(){
  const w=WS[equipped];if(!w||fireCd>0)return;fireCd=w.r/CH.rapid;
+ if(equipped==='spray'){sprayShot();return;}
  camera.updateMatrixWorld();
  const o=w.rg<10?P.pos.clone().add(new V3(0,1.2,0)):camera.position.clone(),dir=new V3();camera.getWorldDirection(dir);
  const tg=CH.aim&&(CH.act==='Vždy'||aimOn)?pickTarget():null;
@@ -1466,18 +1509,22 @@ function renderMissions(){
 }
 let tab='m',gmsg='';
 function renderGuns(){
- panel.innerHTML='<h2>Zbraně</h2>'+WEAPONS.map(w=>{const has=owned.includes(w.id),on=equipped===w.id;return '<button class="mc'+(on?' done':'')+'" data-w="'+w.id+'"><b>'+w.name+(on?' – v ruce':'')+'</b><small>'+w.desc+' · '+(has?(on?'vybaveno':'klepni pro vybavení'):'koupit za $'+w.price)+'</small></button>';}).join('')+'<p style="font-size:13px;color:#ffd166">'+gmsg+'</p><div class="row"><button id="bcl">Zavřít</button></div>';
+ panel.innerHTML='<h2>Zbraně</h2>'+WEAPONS.map(w=>{const has=owned.includes(w.id),on=equipped===w.id;return '<button class="mc'+(on?' done':'')+'" data-w="'+w.id+'"><b>'+w.name+(on?' – v ruce':'')+'</b><small>'+w.desc+' · '+(has?(on?'vybaveno':'klepni pro vybavení'):'koupit za $'+w.price)+'</small></button>';}).join('')+'<div style="margin:8px 0 2px;font-weight:700">🎨 Barva spreje</div><div class="row">'+SPR.list.map((c,i)=>'<button data-sc="'+i+'" title="'+c[0]+'" style="background:'+c[1]+';width:34px;height:34px;padding:0;border-radius:50%;border:3px solid '+(SPR.col===i?'#fff':'#0008')+'"></button>').join('')+'</div><div class="row"><button id="sclr">Smazat graffiti (jen u mě)</button>'+(MP.admin?'<button id="sclra">Smazat všem</button>':'')+'</div>'
+  +'<p style="font-size:13px;color:#ffd166">'+gmsg+'</p><div class="row"><button id="bcl">Zavřít</button></div>';
+ panel.querySelectorAll('[data-sc]').forEach(b=>b.onclick=()=>{SPR.col=+b.dataset.sc;try{localStorage.setItem('rr3d_sprc',String(SPR.col));}catch(_){}renderPanel();});
+ $('sclr').onclick=()=>{clearDecals();toast('Graffiti smazáno (jen u tebe)',1500);};
+ if($('sclra'))$('sclra').onclick=()=>{if(MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify({type:'spraycls'}));};
  panel.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>{const w=WEAPONS.find(x=>x.id===b.dataset.w);gmsg='';if(!owned.includes(w.id)){if(money<w.price){gmsg='Nemáš dost peněz – chybí $'+(w.price-money)+'.';renderPanel();return;}money-=w.price;owned.push(w.id);}equipped=w.id;save();equip();renderPanel();});
  $('bcl').onclick=()=>{panel.hidden=true;paused=false;};
 }
 function renderSkins(){
  const hex=c=>'#'+c.toString(16).padStart(6,'0');
- const opt=(id,name,col)=>{const on=(MYSKIN||null)===id;return '<button class=\"mc'+(on?' done':'')+'\" data-sk=\"'+(id||'')+'\"><b><span style=\"display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:8px;vertical-align:-2px;background:'+col+';border:1px solid #fff6\"></span>'+name+(on?' – vybráno':'')+'</b><small>'+(on?'tento skin máš teď':'klepni pro změnu')+'</small></button>';};
- panel.innerHTML='<h2>Skin postavy</h2>'+opt(null,'Výchozí',hex(SKIN_DEF.suit))+MY_SKINS.map(k=>opt(k,SKINS[k].n,hex(SKINS[k].suit))).join('')
+ const opt=(id,name,col)=>{const on=(MYSKIN||null)===id;return '<button class=\"mc'+(on?' done':'')+'\" data-sk=\"'+(id||'')+'\"><b><span style=\"display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:8px;vertical-align:-2px;background:'+col+';border:1px solid #fff6\"></span>'+name+(on?' – vybráno':'')+'</b><small>'+(on?'tento skin máš teď':(id===null&&(isCreator||isHelper)?'klepni pro návrat k tvému skinu':'klepni pro změnu'))+'</small></button>';};
+ panel.innerHTML='<h2>Skin postavy</h2>'+(isCreator?opt(null,'Můj skin – Creator 👑',hex(0x3a1478)):isHelper?opt(null,'Můj skin – Developer 🛠',hex(0xd62839)):opt(null,'Výchozí',hex(SKIN_DEF.suit)))+(isCreator?opt('helper','Nazikův skin 🛠',hex(SKINS.helper.suit)):'')+MY_SKINS.map(k=>opt(k,SKINS[k].n,hex(SKINS[k].suit))).join('')
   +(SESS.skin?'<p style=\"font-size:12px;color:#ffd166\">Matýsek ti nastavil skin – má přednost, dokud ti ho nesundá.</p>':'')
   +'<div class=\"row\"><button id=\"bcl\">Zavřít</button></div>';
  panel.querySelectorAll('[data-sk]').forEach(b=>b.onclick=()=>{
-  const v=b.dataset.sk||null;MYSKIN=MY_SKINS.includes(v)?v:null;
+  const v=b.dataset.sk||null;MYSKIN=okSkin(v)?v:null;
   try{if(MYSKIN)localStorage.setItem('rr3d_skin',MYSKIN);else localStorage.removeItem('rr3d_skin');}catch(_){}
   setSkin(isCreator,isHelper);sendMySkin();
   toast(MYSKIN?'Skin: '+SKINS[MYSKIN].n:'Skin: výchozí',1500);renderPanel();});
@@ -2279,7 +2326,7 @@ const loginEl=$('login'),lu=$('lu'),lp=$('lp'),lerr=$('lerr');
 try{lu.value=localStorage.getItem('rr3d_name')||'';}catch(_){}
 try{if(window.CSS&&CSS.supports&&(CSS.supports('-webkit-text-security','disc')||CSS.supports('text-security','disc'))){lp.type='text';lp.classList.add('mask');}}catch(_){}
 function setSkin(owner,hp){
- const _ps=(SESS.skin&&SKINS[SESS.skin]&&SESS.skin!=='owner')?SKINS[SESS.skin]:(MYSKIN&&SKINS[MYSKIN]?SKINS[MYSKIN]:null);
+ const _ps=(SESS.skin&&SKINS[SESS.skin]&&SESS.skin!=='owner')?SKINS[SESS.skin]:(okSkin(MYSKIN)&&SKINS[MYSKIN]?SKINS[MYSKIN]:null);
  if(_ps){paint(hero,_ps);return;}
  const m=hero.mats;
  m.suit.color.set(owner?0x3a1478:hp?0xd62839:0x2ec4b6);m.suit.emissive.set(owner?0x1c0a40:hp?0x4a0a10:0x000000);
