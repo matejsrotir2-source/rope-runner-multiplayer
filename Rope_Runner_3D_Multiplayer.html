@@ -720,7 +720,7 @@ const dummy=new THREE.Object3D();
  while(n<N&&tries<9000){tries++;
   const x=(rand()-0.5)*860,z=(rand()-0.5)*480;
   if(blocked(x,z,5))continue;
-  const s=0.8+rand()*0.7,rr=rand(),ra=rand(),rb=rand(),w=Math.max(0.7,0.75*s);
+  const s=0.8+rand()*0.7,rr=rand(),ra=rand(),rb=rand(),w=Math.max(0.9,0.7*s);
   L.push([x,z,s,new THREE.Color().setHSL(0.25+ra*0.08,0.45,0.25+rb*0.12)]);addBox(x,0,z,w,3.5,w);n++;
  }
  TREES.add(L,{shadow:true});
@@ -828,6 +828,171 @@ function rayBox(o,d,b,maxT){
   if(a1>t0)t0=a1;if(a2<t1)t1=a2;if(t0>t1)return -1;
  }
  return t0>0.01?t0:-1;
+}
+
+// ===== MAPA SVĚTA (biomy podle obrázku + Lanová hora se silnicí na vrchol) – čistá logika terénu =====
+const W2={cx:6000,cz:0,W:2400,D:1800,cell:6,hg:null,roads:[],ready:false,tp:0,bw:null,sea:null,_B:null};
+W2.x0=W2.cx-W2.W/2;W2.x1=W2.cx+W2.W/2;W2.z0=W2.cz-W2.D/2;W2.z1=W2.cz+W2.D/2;
+W2.nx=W2.W/W2.cell;W2.nz=W2.D/W2.cell;
+const W2B={x0:W2.x0,x1:W2.x1,z:W2.D/2};
+const W2U=(u,v)=>[W2.x0+u*W2.W,W2.z0+v*W2.D];           // uv (0..1) -> svět
+const W2M={x:W2.x0+0.45*W2.W,z:W2.z0+0.62*W2.D,R:380,H:310,flat:46,seaLv:0};   // Lanová hora
+function HGT(x,z){
+ const g=W2.hg;if(!g||x<3000)return 0;
+ let fx=(x-W2.x0)/W2.cell,fz=(z-W2.z0)/W2.cell;
+ if(fx<0)fx=0;else if(fx>W2.nx-0.001)fx=W2.nx-0.001;
+ if(fz<0)fz=0;else if(fz>W2.nz-0.001)fz=W2.nz-0.001;
+ const ix=fx|0,iz=fz|0,tx=fx-ix,tz=fz-iz,w=W2.nx+1,i=iz*w+ix;
+ return (g[i]*(1-tx)+g[i+1]*tx)*(1-tz)+(g[i+w]*(1-tx)+g[i+w+1]*tx)*tz;
+}
+// směrová svažitost (stoupání ve směru dx,dz)
+function HSLOPE(x,z,dx,dz){const e=1.5;return (HGT(x+dx*e,z+dz*e)-HGT(x-dx*e,z-dz*e))/(2*e);}
+function wb(x){return x>3000?W2B:null;}
+
+// ---------- šum ----------
+function w2hash(ix,iz,s){let h=(Math.imul(ix,374761393)+Math.imul(iz,668265263)+Math.imul(s,1274126177))|0;h=Math.imul(h^(h>>>13),1274126177);h^=h>>>16;return (h>>>0)/4294967296;}
+function w2vn(x,z,s){const ix=Math.floor(x),iz=Math.floor(z),fx=x-ix,fz=z-iz,ux=fx*fx*fx*(fx*(fx*6-15)+10),uz=fz*fz*fz*(fz*(fz*6-15)+10);
+ const a=w2hash(ix,iz,s),b=w2hash(ix+1,iz,s),c=w2hash(ix,iz+1,s),d=w2hash(ix+1,iz+1,s);return (a+(b-a)*ux)+((c+(d-c)*ux)-(a+(b-a)*ux))*uz;}
+function w2fbm(x,z,s,o){let a=0.5,t=0,n=0;for(let i=0;i<(o||4);i++){t+=a*w2vn(x,z,s+i*17);n+=a;x=x*2.03+11.7;z=z*2.03-5.3;a*=0.5;}return t/n;}
+const sstep=(a,b,x)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);};
+const w2l=(a,b,t)=>a+(b-a)*t;
+
+// ---------- biomy (uv: 0..1, vlevo nahoře = jako na obrázku) ----------
+// 0 poušť, 1 led, 2 kaňon/skály, 3 louka, 4 les
+const BIO=[
+ [[.09,.10,.22],[.25,.20,.17],[.16,.32,.13],[.38,.12,.11],[.03,.30,.10]],
+ [[.63,.05,.17],[.86,.07,.19],[.97,.20,.10],[.50,.03,.09],[.74,.17,.08]],
+ [[.06,.74,.20],[.14,.92,.14],[.22,.56,.08],[.02,.58,.09],[.30,.96,.10]],
+ [[.58,.44,.19],[.77,.41,.13],[.80,.64,.10],[.46,.30,.07],[.67,.54,.07]],
+ [[.52,.87,.20],[.74,.89,.14],[.36,.83,.10],[.93,.88,.08],[.62,.70,.08]]
+];
+const BCOL=[[0.86,0.72,0.42],[0.90,0.95,0.99],[0.47,0.36,0.27],[0.52,0.74,0.16],[0.12,0.34,0.10]];
+function biomeAt(x,z){ // vrací {w:[5],sea:s,u,v}
+ let u=(x-W2.x0)/W2.W,v=(z-W2.z0)/W2.D;
+ const wu=u+0.075*(w2fbm(u*4,v*4,3,3)-0.5)*2,wv=v+0.075*(w2fbm(u*4+9,v*4+3,5,3)-0.5)*2;
+ const w=[0,0,0,0,0];let sum=0;
+ for(let i=0;i<5;i++){let m=0;for(const p of BIO[i]){const d=Math.hypot((wu-p[0])*1.333,wv-p[1]);m=Math.max(m,Math.exp(-Math.pow(d/p[2],2)));}
+  w[i]=Math.pow(m,2.2)+1e-6;sum+=w[i];}
+ for(let i=0;i<5;i++)w[i]/=sum;
+ // moře vpravo (elipsa s kostrbatým břehem)
+ const sea=1-Math.pow((u-1.02)/0.20,2)-Math.pow((v-0.55)/0.27,2)+0.35*(w2fbm(u*7,v*7,13,3)-0.5);
+ return {w,sea,u,v};
+}
+// řeky a jezera (uv polyliny)
+const RIV=[
+ {w:0.008,p:[[.14,.19],[.19,.23],[.24,.27],[.30,.30],[.36,.33],[.42,.32],[.49,.30],[.55,.27],[.60,.23],[.63,.18],[.66,.12]]},
+ {w:0.009,p:[[.0,.585],[.05,.605],[.09,.62],[.12,.64],[.125,.70],[.12,.75],[.14,.82],[.17,.88],[.22,.95],[.25,1.0]]}
+];
+const LAKES=[[.12,.64,.045],[.665,.565,.035],[.40,.10,.02],[.80,.05,.03],[.90,.18,.025]];
+function waterField(x,z){ // 0 = nic .. 1 = střed vodní plochy (v metrech od břehu)
+ const u=(x-W2.x0)/W2.W,v=(z-W2.z0)/W2.D;let best=1e9;
+ const wob=(w2fbm(u*14,v*14,21,2)-0.5)*0.012;
+ for(const r of RIV){for(let i=0;i<r.p.length-1;i++){const a=r.p[i],b=r.p[i+1];
+  const ax=a[0]*W2.W,az=a[1]*W2.D,bx=b[0]*W2.W,bz=b[1]*W2.D,px=u*W2.W,pz=v*W2.D,dx=bx-ax,dz=bz-az;
+  let t=((px-ax)*dx+(pz-az)*dz)/(dx*dx+dz*dz);t=Math.max(0,Math.min(1,t));
+  const d=Math.hypot(px-ax-dx*t,pz-az-dz*t)-(r.w+wob)*W2.W;if(d<best)best=d;}}
+ for(const l of LAKES){const d=Math.hypot((u-l[0])*W2.W,(v-l[1])*W2.D)-(l[2]+wob)*W2.W;if(d<best)best=d;}
+ return best; // <0 uvnitř vody (v metrech)
+}
+// mesy (náhorní plošiny) – pevné pozice
+const MESAS=[[.12,.22,70,26],[.22,.12,55,34],[.34,.24,60,22],[.06,.38,80,30],[.30,.38,45,28],[.18,.30,50,24],
+ [.10,.82,90,38],[.20,.70,70,32],[.08,.62,60,36],[.26,.86,60,30]].map(m=>{const p=W2U(m[0],m[1]);return [p[0],p[1],m[2],m[3]];});
+
+function baseHeight(x,z){
+ const B=biomeAt(x,z),w=B.w;W2._B=B;
+ const n1=w2fbm(x/260,z/260,1,4),n2=w2fbm(x/70,z/70,2,3);
+ const hMeadow=5+8*n1+1.6*n2;
+ const hForest=8+16*w2fbm(x/210,z/210,4,4)+2.5*n2;
+ let dn=1-Math.abs(2*w2fbm(x/190,z/190,6,4)-1);dn=dn*dn;
+ let hDesert=7+19*dn+4*n2;
+ for(const m of MESAS){const d=Math.hypot(x-m[0],z-m[1]);if(d<m[2]*1.9){hDesert+=m[3]*(1-sstep(m[2],m[2]*1.35,d));}}
+ let hIce=10+26*w2fbm(x/240,z/240,7,4)+16*Math.pow(1-Math.abs(2*w2fbm(x/130,z/130,8,3)-1),3);
+ const q=w2fbm(x/200,z/200,9,4)*4.4,qf=Math.floor(q),hRock=30+8*(qf+sstep(0.55,1,q-qf))+6*n2;
+ let h=w[0]*hDesert+w[1]*hIce+w[2]*hRock+w[3]*hMeadow+w[4]*hForest;
+ // moře: svah dolů + pláž
+ if(B.sea>-0.2){const t=sstep(-0.06,0.1,B.sea),target=w2l(1.5,-9,t),k=sstep(-0.2,-0.08,B.sea);h=w2l(h,target,k);}
+ // řeky + jezera: koryto
+ const wd=waterField(x,z);
+ if(wd<44){const bank=1-sstep(0,44,wd),depth=wd<0?-3.2-Math.min(4,-wd*0.25):-1+wd*0.0;h=w2l(h,Math.min(h,wd<0?depth:0.8),Math.pow(bank,1.4)*(wd<0?1:0.65));}
+ // hora (přičtený masiv)
+ const dm=Math.hypot(x-W2M.x,z-W2M.z);
+ if(dm<W2M.R){const s=Math.max(0,Math.min(1,(dm-W2M.flat)/(W2M.R-W2M.flat))),prof=(1-s),
+   nz=(w2fbm(x/150,z/150,31,4)-0.5)*2*34+(w2fbm(x/55,z/55,32,3)-0.5)*2*8;
+  const wall=Math.min(1,s*3.2)*(1-s*s);   // plošina nahoře zůstane rovná
+  h=h*(1-0.5*(1-s))+W2M.H*prof+nz*wall*0.7;}
+ // okraj ostrova -> moře
+ const ed=Math.min(x-W2.x0,W2.x1-x,z-W2.z0,W2.z1-z);
+ if(ed<140)h=w2l(-9,h,sstep(0,140,ed));
+ return h;
+}
+
+// ---------- silnice ----------
+function catmull(pts,step){const out=[];for(let i=0;i<pts.length-1;i++){const p0=pts[Math.max(0,i-1)],p1=pts[i],p2=pts[i+1],p3=pts[Math.min(pts.length-1,i+2)];
+ const L=Math.hypot(p2[0]-p1[0],p2[1]-p1[1]),n=Math.max(2,Math.ceil(L/step));
+ for(let k=0;k<n;k++){const t=k/n,t2=t*t,t3=t2*t;out.push([0,1].map(c=>0.5*((2*p1[c])+(-p0[c]+p2[c])*t+(2*p0[c]-5*p1[c]+4*p2[c]-p3[c])*t2+(-p0[c]+3*p1[c]-3*p2[c]+p3[c])*t3)));}}
+ out.push(pts[pts.length-1].slice());return out;}
+function mountainProfile(r){const s=Math.max(0,Math.min(1,(r-W2M.flat)/(W2M.R-W2M.flat)));return W2M.H*(1-s);}
+function buildRoads(){
+ const R=[];
+ // 1) serpentina na Lanovou horu: 3 otáčky, z paty (východ) až na plošinu
+ const sp=[],r0=W2M.R-6,r1=W2M.flat-4,k=0.09;  // kuželová šroubovice: stálé stoupání ≈ 8 %
+ {let r=r0,th=-0.44;const dl=3;while(r>r1){const sr=Math.max(0,Math.min(1,(r-W2M.flat)/(W2M.R-W2M.flat)));sp.push([W2M.x+Math.cos(th)*r,W2M.z+Math.sin(th)*r,mountainProfile(r)+4*sr]);
+  const dr=k*dl;th+=Math.sqrt(dl*dl-dr*dr)/r;r-=dr;}
+  sp.push([W2M.x+Math.cos(th)*r1,W2M.z+Math.sin(th)*r1,W2M.H]);}
+ const N=sp.length-1;
+ // dojezd do středu plošiny
+ const top=sp[sp.length-1][2];
+ for(let k=1;k<=5;k++){sp.push([w2l(sp[N][0],W2M.x,k/5),w2l(sp[N][1],W2M.z,k/5),top]);}
+ R.push({name:'Lanová hora',pts:sp,w:10,fixedY:true});
+ // 2) napojení z brány a okruhy mezi biomy (výška = terén, vyhlazená)
+ const U=(a)=>a.map(p=>W2U(p[0],p[1]));
+ const G=[.72,.45];
+ const spStart=[sp[0][0],sp[0][1]];
+ R.push({endY:sp[0][2],name:'Hlavní cesta k hoře',pts:catmull([W2U(G[0],G[1]),W2U(.70,.46),[spStart[0]-(-Math.sin(-0.44))*70,spStart[1]-Math.cos(-0.44)*70],spStart],6),w:10});
+ R.push({name:'Cesta k vesnici a poušti',pts:catmull(U([G,[.66,.40],[.60,.37],[.53,.31],[.45,.27],[.35,.24],[.25,.19],[.15,.14]]),6),w:9});
+ R.push({name:'Cesta k ledovci',pts:catmull(U([[.66,.40],[.70,.30],[.76,.20],[.82,.13],[.89,.10]]),6),w:9});
+ R.push({name:'Cesta lesem a kaňonem',pts:catmull(U([G,[.76,.58],[.73,.70],[.64,.82],[.50,.90],[.38,.86],[.28,.80],[.18,.74]]),6),w:9});
+ R.push({name:'Cesta k moři',pts:catmull(U([G,[.80,.48],[.85,.51]]),6),w:9});
+ return R;
+}
+function baseFlat(x,z){return Math.max(1.5,baseHeight(x,z));}
+
+// ---------- sestavení výškové mřížky + vyhlazení + vykopání silnic ----------
+function buildTerrain(){
+ const w=W2.nx+1,h=W2.nz+1,g=new Float32Array(w*h);
+ W2.bw=new Uint8Array(w*h*5);W2.sea=new Float32Array(w*h);
+ for(let j=0;j<h;j++)for(let i=0;i<w;i++){const k=j*w+i;g[k]=baseHeight(W2.x0+i*W2.cell,W2.z0+j*W2.cell);const B=W2._B;for(let c=0;c<5;c++)W2.bw[k*5+c]=Math.round(B.w[c]*255);W2.sea[k]=B.sea;}
+ // omezení sklonu (aby šlo chodit)
+ const maxd=1.2*W2.cell;
+ for(let pass=0;pass<4;pass++){
+  for(let j=0;j<h;j++)for(let i=0;i<w;i++){const k=j*w+i;
+   if(i+1<w){const d=g[k+1]-g[k];if(Math.abs(d)>maxd){const e=(Math.abs(d)-maxd)/2*Math.sign(d);g[k]+=e;g[k+1]-=e;}}
+   if(j+1<h){const d=g[k+w]-g[k];if(Math.abs(d)>maxd){const e=(Math.abs(d)-maxd)/2*Math.sign(d);g[k]+=e;g[k+w]-=e;}}}}
+ W2.hg=g;
+ // silnice
+ const roads=buildRoads();W2.roads=roads;
+ const rd=new Float32Array(w*h).fill(1e9),ry=new Float32Array(w*h);
+ const FL=7,BL=38;
+ for(const r of roads){
+  let pts=r.pts;
+  if(!r.fixedY){ // výška = vyhlazený terén (louka/koryta se zvednou na násyp přes řeky)
+   const ys=pts.map(p=>Math.max(1.4,HGT(p[0],p[1])+0.0));
+   for(let it=0;it<80;it++)for(let i=1;i<ys.length-1;i++)ys[i]=(ys[i-1]+ys[i]*2+ys[i+1])/4;
+   if(r.endY!==undefined){const n=ys.length,K=Math.min(40,n-2);for(let i=n-K;i<n;i++){ys[i]=w2l(ys[i],r.endY,sstep(0,1,(i-(n-K))/(K-1)));}}
+   pts=pts.map((p,i)=>[p[0],p[1],ys[i]]);
+   // napoj konec/začátek na serpentinu
+   r.pts=pts;
+  }
+  // zjemnit na ~2 m
+  const dense=[];for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],L=Math.hypot(b[0]-a[0],b[1]-a[1]),n=Math.max(1,Math.ceil(L/2));for(let k=0;k<n;k++){const t=k/n;dense.push([w2l(a[0],b[0],t),w2l(a[1],b[1],t),w2l(a[2],b[2],t)]);}}
+  dense.push(pts[pts.length-1]);r.dense=dense;
+  const rad=Math.ceil(BL/W2.cell)+1;
+  for(const p of dense){const ci=Math.round((p[0]-W2.x0)/W2.cell),cj=Math.round((p[1]-W2.z0)/W2.cell);
+   for(let j=Math.max(0,cj-rad);j<=Math.min(h-1,cj+rad);j++)for(let i=Math.max(0,ci-rad);i<=Math.min(w-1,ci+rad);i++){
+    const d=Math.hypot(W2.x0+i*W2.cell-p[0],W2.z0+j*W2.cell-p[1]),k=j*w+i;if(d<rd[k]){rd[k]=d;ry[k]=p[2];}}}
+ }
+ for(let k=0;k<w*h;k++){if(rd[k]<BL){const t=1-sstep(FL,BL,rd[k]);g[k]=w2l(g[k],ry[k],t);}}
+ W2.rd=rd;W2.ready=true;return g;
 }
 
 const MB={x0:-1500,x1:1260,z:1000,zones:[[-1500,-520,-720,720,'#7aa655'],[-450,900,-980,-330,'#6f86ad'],[620,1260,-320,320,'#a89878'],[-450,900,330,960,'#4fb868']]};
@@ -951,6 +1116,180 @@ const VILLA=(function(){
   if(hh>300){const s=new THREE.Mesh(new THREE.ConeGeometry(1,1,7),M(0xf4f6fa));s.scale.set(r*0.34,hh*0.28,r*0.34);s.position.set(x,hh*0.86,z);scene.add(s);}});
  return {x:VX,z:VZ,px,pz,pyaw:Math.PI};
 })();
+// ===== MAPA SVĚTA – vykreslení (terén, voda, silnice, hora, stromy, vesnice, portály) =====
+const WORLD2=(function(){
+ buildTerrain();
+ const w=W2.nx+1,h=W2.nz+1,g=W2.hg,C=W2.cell,lam=c=>new THREE.MeshLambertMaterial({color:c});
+ const G=W2U(.72,.45),S2={x:G[0]+11,z:G[1]+15},GATE={x:G[0],z:G[1]};
+ // --- barva vrcholu mřížky
+ function vcol(i,j,x,z,hh,out){
+  const k=j*w+i,bw=W2.bw;let r=0,gr=0,b=0;
+  for(let c=0;c<5;c++){const q=bw[k*5+c]/255;r+=q*BCOL[c][0];gr+=q*BCOL[c][1];b+=q*BCOL[c][2];}
+  const n=w2fbm(x/34,z/34,41,2),vv=0.82+0.34*n;r*=vv;gr*=vv;b*=vv;
+  const i0=Math.max(0,i-1),i1=Math.min(w-1,i+1),j0=Math.max(0,j-1),j1=Math.min(h-1,j+1);
+  const gx=(g[j*w+i1]-g[j*w+i0])/((i1-i0)*C),gz=(g[j1*w+i]-g[j0*w+i])/((j1-j0)*C),sl=Math.hypot(gx,gz);
+  const dw=bw[k*5]/255;
+  if(dw>0.3){const band=0.5+0.5*Math.sin(hh*0.75+n*4),tt=Math.min(1,sstep(0.25,0.75,sl)+(hh>26?0.5:0));
+   r=w2l(r,w2l(0.80,0.62,band),tt*dw);gr=w2l(gr,w2l(0.46,0.34,band),tt*dw);b=w2l(b,w2l(0.27,0.2,band),tt*dw);}
+  const rk=sstep(0.55,1.0,sl)*(1-dw*0.8);r=w2l(r,0.46,rk*0.85);gr=w2l(gr,0.43,rk*0.85);b=w2l(b,0.41,rk*0.85);
+  const dm=Math.hypot(x-W2M.x,z-W2M.z);
+  if(dm<W2M.R*1.05){const alt=hh/W2M.H,m=1-sstep(W2M.R*0.7,W2M.R*1.05,dm),tr=sstep(0.2,0.5,alt)*m,ts=sstep(0.7,0.86,alt+(n-0.5)*0.2)*m;
+   r=w2l(r,0.47,tr*0.9);gr=w2l(gr,0.44,tr*0.9);b=w2l(b,0.42,tr*0.9);r=w2l(r,0.96,ts);gr=w2l(gr,0.97,ts);b=w2l(b,0.99,ts);}
+  if(hh<3.2&&W2.sea[k]>-0.2){const t=sstep(-0.2,-0.1,W2.sea[k])*(1-sstep(3,3.2,hh));r=w2l(r,0.9,t);gr=w2l(gr,0.82,t);b=w2l(b,0.6,t);}
+  if(hh<0.2){const t=Math.min(1,0.4+(-hh)*0.12);r=w2l(r,0.34,t);gr=w2l(gr,0.4,t);b=w2l(b,0.32,t);}
+  out[0]=r;out[1]=gr;out[2]=b;
+ }
+ // --- terén po blocích 50×50 buněk
+ const dtex=mkTex(128,128,(gg,ww,hh)=>{gg.fillStyle='#d9d9d9';gg.fillRect(0,0,ww,hh);grain(gg,ww,hh,2600,['255,255,255','70,70,70'],0.04,0.22,3);},1,1);
+ const tmat=new THREE.MeshLambertMaterial({vertexColors:true,map:dtex});
+ const KC=50,col=[0,0,0],tg=new THREE.Group();scene.add(tg);
+ for(let cj=0;cj<h-1;cj+=KC)for(let ci=0;ci<w-1;ci+=KC){
+  const nxv=Math.min(KC,w-1-ci)+1,nzv=Math.min(KC,h-1-cj)+1,pos=new Float32Array(nxv*nzv*3),nor=new Float32Array(nxv*nzv*3),cl=new Float32Array(nxv*nzv*3),uv=new Float32Array(nxv*nzv*2);
+  let q=0;
+  for(let j=0;j<nzv;j++)for(let i=0;i<nxv;i++){
+   const gi=ci+i,gj=cj+j,k=gj*w+gi,x=W2.x0+gi*C,z=W2.z0+gj*C,hh=g[k];
+   const i0=Math.max(0,gi-1),i1=Math.min(w-1,gi+1),j0=Math.max(0,gj-1),j1=Math.min(h-1,gj+1);
+   let nx=-(g[gj*w+i1]-g[gj*w+i0])/((i1-i0)*C),nz=-(g[j1*w+gi]-g[j0*w+gi])/((j1-j0)*C);const nl=Math.hypot(nx,1,nz);
+   pos[q*3]=x;pos[q*3+1]=hh;pos[q*3+2]=z;nor[q*3]=nx/nl;nor[q*3+1]=1/nl;nor[q*3+2]=nz/nl;
+   vcol(gi,gj,x,z,hh,col);cl[q*3]=col[0];cl[q*3+1]=col[1];cl[q*3+2]=col[2];uv[q*2]=x/16;uv[q*2+1]=z/16;q++;}
+  const idx=new Uint32Array((nxv-1)*(nzv-1)*6);let t=0;
+  for(let j=0;j<nzv-1;j++)for(let i=0;i<nxv-1;i++){const a=j*nxv+i,b=a+1,c=a+nxv,d=c+1;idx[t++]=a;idx[t++]=c;idx[t++]=b;idx[t++]=b;idx[t++]=c;idx[t++]=d;}
+  const ge=new THREE.BufferGeometry();ge.setAttribute('position',new THREE.BufferAttribute(pos,3));ge.setAttribute('normal',new THREE.BufferAttribute(nor,3));
+  ge.setAttribute('color',new THREE.BufferAttribute(cl,3));ge.setAttribute('uv',new THREE.BufferAttribute(uv,2));ge.setIndex(new THREE.BufferAttribute(idx,1));
+  ge.computeBoundingSphere();const m=new THREE.Mesh(ge,tmat);m.receiveShadow=true;tg.add(m);}
+ // --- voda (řeky, jezera, moře)
+ const wm=new THREE.Mesh(new THREE.PlaneGeometry(7000,7000),new THREE.MeshLambertMaterial({color:0x2d86c4,emissive:0x0a2f4f,transparent:true,opacity:0.8,depthWrite:false}));
+ wm.rotation.x=-Math.PI/2;wm.position.set(W2.cx,0,W2.cz);wm.renderOrder=1;scene.add(wm);
+ // --- silnice (pás podle terénu) + svodidla na serpentině
+ const rt=roadTex.clone();rt.needsUpdate=true;rt.wrapS=rt.wrapT=THREE.RepeatWrapping;rt.repeat.set(1,1);
+ const rmat=new THREE.MeshLambertMaterial({map:rt,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+ const rail=new THREE.MeshLambertMaterial({color:0xd5d9de,side:THREE.DoubleSide}),posts=[];
+ W2.roads.forEach((r,ri)=>{
+  const pts=[];for(let i=0;i<r.dense.length;i+=2)pts.push(r.dense[i]);if(pts[pts.length-1]!==r.dense[r.dense.length-1])pts.push(r.dense[r.dense.length-1]);
+  const n=pts.length,P=new Float32Array(n*6),U=new Float32Array(n*4),I=[];let cum=0;const RP=[],hw=(r.w||9)/2;
+  for(let i=0;i<n;i++){const a=pts[Math.max(0,i-1)],b=pts[Math.min(n-1,i+1)];let tx=b[0]-a[0],tz=b[1]-a[1];const tl=Math.hypot(tx,tz)||1;tx/=tl;tz/=tl;
+   if(i>0)cum+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);
+   const lx=-tz,lz=tx,x=pts[i][0],z=pts[i][1],xa=x+lx*hw,za=z+lz*hw,xb=x-lx*hw,zb=z-lz*hw;
+   P[i*6]=xa;P[i*6+1]=HGT(xa,za)+0.16;P[i*6+2]=za;P[i*6+3]=xb;P[i*6+4]=HGT(xb,zb)+0.16;P[i*6+5]=zb;
+   U[i*4]=cum/32;U[i*4+1]=0;U[i*4+2]=cum/32;U[i*4+3]=1;
+   if(i<n-1){const a0=i*2,b0=a0+1,c0=a0+2,d0=a0+3;I.push(a0,b0,c0,b0,d0,c0);}
+   RP.push([x,z,lx,lz,P[i*6+1]]);}
+  const ge=new THREE.BufferGeometry();ge.setAttribute('position',new THREE.BufferAttribute(P,3));ge.setAttribute('uv',new THREE.BufferAttribute(U,2));
+  const NN=new Float32Array(n*6);for(let i=0;i<n*2;i++)NN[i*3+1]=1;ge.setAttribute('normal',new THREE.BufferAttribute(NN,3));ge.setIndex(I);ge.computeBoundingSphere();
+  const m=new THREE.Mesh(ge,rmat);m.receiveShadow=true;scene.add(m);
+  if(ri===0){ // svodidla na vnější straně serpentiny
+   const RPo=[],RI=[];let cnt=0;
+   for(let i=0;i<RP.length;i++){const p=RP[i];let ox=p[0]-W2M.x,oz=p[1]-W2M.z;const ol=Math.hypot(ox,oz)||1;ox/=ol;oz/=ol;
+    const ex=p[0]+ox*(hw+0.7),ez=p[1]+oz*(hw+0.7),ey=HGT(ex,ez);
+    RPo.push(ex,Math.max(ey,p[4])+0.45,ez,ex,Math.max(ey,p[4])+1.05,ez);
+    if(i<RP.length-1){const a0=i*2;RI.push(a0,a0+1,a0+2,a0+1,a0+3,a0+2);}
+    if(i%3===0)posts.push([ex,Math.max(ey,p[4]),ez]);}
+   const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(RPo),3));rg.setIndex(RI);rg.computeVertexNormals();
+   const rm=new THREE.Mesh(rg,rail);scene.add(rm);}
+ });
+ if(posts.length){const pm=new THREE.InstancedMesh(new THREE.BoxGeometry(0.2,1.2,0.2),lam(0x8d9299),posts.length),dm=new THREE.Object3D();
+  posts.forEach((p,i)=>{dm.position.set(p[0],p[1]+0.6,p[2]);dm.rotation.set(0,0,0);dm.scale.set(1,1,1);dm.updateMatrix();pm.setMatrixAt(i,dm.matrix);});pm.frustumCulled=false;scene.add(pm);}
+ // --- domy ve vesnicích
+ const rr=rng(8123),HLIST=[],houses=[];
+ const roadByName=n=>W2.roads.find(r=>r.name===n);
+ function village(road,uv,count,span,off,cols){
+  const d=road.dense,tp=W2U(uv[0],uv[1]);let bi=0,bd=1e18;for(let i=0;i<d.length;i++){const q=(d[i][0]-tp[0])**2+(d[i][1]-tp[1])**2;if(q<bd){bd=q;bi=i;}}
+  for(let c=0;c<count;c++){const idx=Math.max(2,Math.min(d.length-3,bi+Math.round((c-count/2)*span/2*0.5)*2*Math.ceil(1)));
+   const a=d[idx-1],b=d[idx+1];let tx=b[0]-a[0],tz=b[1]-a[1];const tl=Math.hypot(tx,tz)||1;tx/=tl;tz/=tl;
+   const side=c%2?1:-1,dist=off+rr()*6,x=d[idx][0]-tz*side*dist,z=d[idx][1]+tx*side*dist;
+   const hw=7+rr()*4,hd=6+rr()*3,hh=4+rr()*2.2,al=Math.abs(tx)>Math.abs(tz);
+   HLIST.push({x,z,w:al?hw:hd,d:al?hd:hw,h:hh,wall:cols.w[Math.floor(rr()*cols.w.length)],roof:cols.r[Math.floor(rr()*cols.r.length)]});}
+ }
+ const CM={w:['#fff0d2','#f2d3bd','#cfe8cb','#c4dcf2','#f4d9a4','#e6e0d8'],r:['#b04a38','#7a624c','#4f6a7e','#8c4f4f']};
+ const CD={w:['#e8c98f','#d9b27a','#f0dcae'],r:['#9a5a3a','#7a4a2c']};
+ village(roadByName('Cesta k vesnici a poušti'),[.60,.37],12,36,15,CM);
+ village(roadByName('Cesta k vesnici a poušti'),[.30,.22],6,40,14,CD);
+ village(roadByName('Cesta lesem a kaňonem'),[.66,.78],5,40,14,CM);
+ village(roadByName('Hlavní cesta k hoře'),[.62,.55],3,60,13,CM);
+ village(roadByName('Cesta k ledovci'),[.80,.14],4,40,13,{w:['#dfe7ee','#c9d6e2'],r:['#4f6a7e','#5f5f66']});
+ const hf=[];
+ HLIST.forEach(q=>{ // vyřadit domy ve vodě / na prudkém svahu
+  const ys=[HGT(q.x,q.z),HGT(q.x-q.w/2,q.z-q.d/2),HGT(q.x+q.w/2,q.z-q.d/2),HGT(q.x-q.w/2,q.z+q.d/2),HGT(q.x+q.w/2,q.z+q.d/2)],mn=Math.min(...ys),mx=Math.max(...ys);
+  if(mn<0.6||mx-mn>2.6)return;q.y0=mn;hf.push(q);});
+ if(hf.length){const wallG=new THREE.BoxGeometry(1,1,1);wallG.translate(0,0.5,0);const roofG=new THREE.ConeGeometry(0.7071,1,4);roofG.rotateY(Math.PI/4);roofG.translate(0,0.5,0);
+  const wm2=new THREE.InstancedMesh(wallG,new THREE.MeshLambertMaterial({color:0xffffff}),hf.length),rm2=new THREE.InstancedMesh(roofG,new THREE.MeshLambertMaterial({color:0xffffff}),hf.length),dm=new THREE.Object3D(),cc=new THREE.Color();
+  hf.forEach((q,i)=>{dm.rotation.set(0,0,0);dm.position.set(q.x,q.y0-0.6,q.z);dm.scale.set(q.w,q.h+0.6,q.d);dm.updateMatrix();wm2.setMatrixAt(i,dm.matrix);wm2.setColorAt(i,cc.set(q.wall));
+   dm.position.set(q.x,q.y0+q.h,q.z);dm.scale.set(q.w*1.12,q.h*0.55,q.d*1.12);dm.updateMatrix();rm2.setMatrixAt(i,dm.matrix);rm2.setColorAt(i,cc.set(q.roof));addBox(q.x,q.y0,q.z,q.w,q.h,q.d);});
+  [wm2,rm2].forEach(m=>{m.instanceMatrix.needsUpdate=true;m.instanceColor.needsUpdate=true;m.frustumCulled=false;m.receiveShadow=true;m.castShadow=true;scene.add(m);});}
+ // --- stromy, kaktusy, kameny
+ const PN=[],BR=[],SP=[],CA=[],RK=[],tc=new THREE.Color();
+ function nearHouse(x,z){for(const q of hf)if(Math.abs(x-q.x)<q.w/2+9&&Math.abs(z-q.z)<q.d/2+9)return true;return false;}
+ for(let x=W2.x0+24;x<W2.x1-24;x+=13)for(let z=W2.z0+24;z<W2.z1-24;z+=13){
+  const px=x+(rr()-0.5)*11,pz=z+(rr()-0.5)*11,hh=HGT(px,pz);if(hh<1.0)continue;
+  const gi=Math.round((px-W2.x0)/C),gj=Math.round((pz-W2.z0)/C),k=gj*w+gi;if(W2.rd[k]<14)continue;
+  const sl=Math.max(Math.abs(HGT(px+4,pz)-hh),Math.abs(HGT(px,pz+4)-hh))/4;if(sl>0.6)continue;
+  const dm=Math.hypot(px-W2M.x,pz-W2M.z);if(dm<W2M.flat+12)continue;if(Math.hypot(px-GATE.x,pz-GATE.z)<26)continue;
+  const bw=W2.bw,wd=bw[k*5]/255,wi=bw[k*5+1]/255,wr=bw[k*5+2]/255,wmz=bw[k*5+3]/255,wf=bw[k*5+4]/255,rv=rr();
+  if(nearHouse(px,pz))continue;
+  let pF=wf*0.6+(dm<W2M.R?0.3*(1-sstep(40,170,hh)):0);
+  if(rv<pF){const s=0.8+rr()*0.9;(rr()<0.62?PN:BR).push([px,hh,pz,s,wf]);}
+  else if(rv<pF+wmz*0.05){BR.push([px,hh,pz,0.8+rr()*0.7,wmz]);}
+  else if(rv<pF+wmz*0.05+wi*0.11){SP.push([px,hh,pz,0.8+rr()*0.9,1]);}
+  else if(rv<pF+wmz*0.05+wi*0.11+wd*0.012){CA.push([px,hh,pz,0.8+rr()*0.7,1]);}
+  else if(rv<pF+wmz*0.05+wi*0.11+wd*0.012+(wd+wr)*0.025){RK.push([px,hh,pz,0.7+rr()*1.8,wd]);}
+ }
+ function inst(geo,mat,list,fn){if(!list.length)return;const m=new THREE.InstancedMesh(geo,mat,list.length),dm=new THREE.Object3D();
+  list.forEach((t,i)=>{fn(dm,t,tc);dm.updateMatrix();m.setMatrixAt(i,dm.matrix);m.setColorAt(i,tc);});m.instanceMatrix.needsUpdate=true;m.instanceColor.needsUpdate=true;m.frustumCulled=false;scene.add(m);return m;}
+ const white=new THREE.MeshLambertMaterial({color:0xffffff}),trunkG=new THREE.CylinderGeometry(0.25,0.42,3.4,5),pineG=new THREE.ConeGeometry(2.5,8,7),pine2G=new THREE.ConeGeometry(1.8,5.5,7),broadG=new THREE.IcosahedronGeometry(2.7,0),cactG=new THREE.CylinderGeometry(0.5,0.6,4.6,6),rockG=new THREE.DodecahedronGeometry(1.5,0);
+ const trunkAll=PN.concat(BR,SP);
+ inst(trunkG,white,trunkAll,(d,t,c)=>{d.position.set(t[0],t[1]+1.5*t[3],t[2]);d.rotation.set(0,0,0);d.scale.set(t[3],t[3],t[3]);c.set(0x5a4330);});
+ inst(pineG,white,PN,(d,t,c)=>{d.position.set(t[0],t[1]+3.2*t[3]+4*t[3],t[2]);d.rotation.set(0,t[0]*1.7,0);d.scale.set(t[3],t[3],t[3]);c.setHSL(0.3+((t[0]*7)%1)*0.05,0.45,0.17+((t[2]*3)%1)*0.08);});
+ inst(pine2G,white,PN,(d,t,c)=>{d.position.set(t[0],t[1]+3.2*t[3]+7.2*t[3],t[2]);d.rotation.set(0,t[2]*1.3,0);d.scale.set(t[3],t[3],t[3]);c.setHSL(0.31,0.45,0.2);});
+ inst(broadG,white,BR,(d,t,c)=>{d.position.set(t[0],t[1]+4.6*t[3],t[2]);d.rotation.set(0,t[0],0);d.scale.set(t[3],t[3]*0.9,t[3]);c.setHSL(0.22+((t[0]*5)%1)*0.08,0.5,0.28+((t[2]*3)%1)*0.1);});
+ inst(pineG,white,SP,(d,t,c)=>{d.position.set(t[0],t[1]+3.2*t[3]+4*t[3],t[2]);d.rotation.set(0,t[0]*1.7,0);d.scale.set(t[3],t[3],t[3]);c.setRGB(0.88,0.95,0.97);});
+ inst(cactG,white,CA,(d,t,c)=>{d.position.set(t[0],t[1]+2.3*t[3],t[2]);d.rotation.set(0,0,0);d.scale.set(t[3],t[3],t[3]);c.setRGB(0.22,0.5,0.2);});
+ inst(rockG,white,RK,(d,t,c)=>{d.position.set(t[0],t[1]+0.5*t[3],t[2]);d.rotation.set(t[0],t[2],0);d.scale.set(t[3]*1.2,t[3]*0.85,t[3]);const v=0.4+((t[0]*11)%1)*0.2;c.setRGB(v+0.15*t[4],v*0.9,v*0.8);});
+ // --- vrchol hory: plošina, rozhledna s „lanovým“ stožárem, cedule
+ const tx=W2M.x,tz=W2M.z,ty=W2M.H;
+ {const disk=new THREE.Mesh(new THREE.CircleGeometry(24,40),lam(0x8d9096));disk.rotation.x=-Math.PI/2;disk.position.set(tx,ty+0.14,tz);disk.receiveShadow=true;scene.add(disk);
+  const mast=new THREE.Mesh(new THREE.CylinderGeometry(0.7,1.3,70,8),lam(0xd9d9d9));mast.position.set(tx+11,ty+35,tz);mast.castShadow=true;scene.add(mast);addBox(tx+11,ty,tz,2.6,70,2.6);
+  const ball=new THREE.Mesh(new THREE.SphereGeometry(1.8,12,8),new THREE.MeshBasicMaterial({color:0xff3b30}));ball.position.set(tx+11,ty+71.5,tz);scene.add(ball);
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(9,5),new THREE.MeshBasicMaterial({color:0x35e0ff,side:THREE.DoubleSide}));fl.position.set(tx+15.6,ty+66,tz);scene.add(fl);
+  const hut=new THREE.Mesh(new THREE.BoxGeometry(9,4.5,7),lam(0xd9d2c3));hut.position.set(tx-12,ty+2.25,tz-6);hut.castShadow=true;scene.add(hut);addBox(tx-12,ty,tz-6,9,4.5,7);
+  const hr=new THREE.Mesh(new THREE.BoxGeometry(10,0.6,8),lam(0x3a3d42));hr.position.set(tx-12,ty+4.8,tz-6);scene.add(hr);
+  const cv=document.createElement('canvas');cv.width=512;cv.height=160;const c2=cv.getContext('2d');c2.fillStyle='#14161c';c2.fillRect(0,0,512,160);c2.strokeStyle='#35e0ff';c2.lineWidth=6;c2.strokeRect(6,6,500,148);
+  c2.fillStyle='#fff';c2.font='bold 50px sans-serif';c2.textAlign='center';c2.textBaseline='middle';c2.fillText('🏔 VRCHOL',256,56);c2.font='bold 34px sans-serif';c2.fillStyle='#ffd166';c2.fillText('Lanová hora · '+W2M.H+' m',256,112);
+  const sg=new THREE.Mesh(new THREE.PlaneGeometry(10,3.1),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv),side:THREE.DoubleSide}));sg.position.set(tx+2,ty+4.2,tz+14);scene.add(sg);
+  [-4.6,4.6].forEach(o=>{const p=new THREE.Mesh(new THREE.BoxGeometry(0.4,4.2,0.4),lam(0x555a62));p.position.set(tx+2+o,ty+2.1,tz+14);scene.add(p);});}
+ // --- portály (město ↔ mapa světa)
+ const CITY_P={x:30,z:-47};
+ function portal(x,y,z,yaw,label,c1){
+  const grp=new THREE.Group();grp.position.set(x,y,z);grp.rotation.y=yaw;scene.add(grp);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(4.2,0.5,10,40),new THREE.MeshBasicMaterial({color:c1}));ring.position.y=4.8;grp.add(ring);
+  const disc=new THREE.Mesh(new THREE.CircleGeometry(3.8,32),new THREE.MeshBasicMaterial({color:c1,transparent:true,opacity:0.28,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));disc.position.y=4.8;grp.add(disc);
+  [-4.2,4.2].forEach(o=>{const p=new THREE.Mesh(new THREE.BoxGeometry(1,5,1),lam(0x2b2f36));p.position.set(o,2.5,0);grp.add(p);});
+  const cv=document.createElement('canvas');cv.width=512;cv.height=96;const c2=cv.getContext('2d');c2.fillStyle='#0b1426';c2.fillRect(0,0,512,96);c2.strokeStyle='#'+new THREE.Color(c1).getHexString();c2.lineWidth=6;c2.strokeRect(4,4,504,88);
+  c2.fillStyle='#fff';c2.font='bold 44px sans-serif';c2.textAlign='center';c2.textBaseline='middle';c2.fillText(label,256,50);
+  const sg=new THREE.Mesh(new THREE.PlaneGeometry(9,1.7),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv),side:THREE.DoubleSide}));sg.position.set(0,10.2,0);grp.add(sg);
+  return {grp,ring,disc};}
+ const pc=portal(CITY_P.x,0,CITY_P.z,0,'🌍 MAPA SVĚTA',0x35e0ff);
+ const gate=portal(GATE.x-12,HGT(GATE.x-12,GATE.z),GATE.z,Math.PI/2,'🏙 ZPĚT DO MĚSTA',0xff9f1c);
+ const GP={x:GATE.x-12,z:GATE.z};
+ // --- mapa pro minimapu a velkou mapu
+ const mc=document.createElement('canvas');mc.width=w;mc.height=h;{const cx=mc.getContext('2d'),im=cx.createImageData(w,h);
+  for(let j=0;j<h;j++)for(let i=0;i<w;i++){const k=j*w+i,x=W2.x0+i*C,z=W2.z0+j*C,hh=g[k];vcol(i,j,x,z,hh,col);
+   const sh=0.78+0.22*Math.max(-1,Math.min(1,((g[j*w+Math.max(0,i-1)]-g[j*w+Math.min(w-1,i+1)])+(g[Math.max(0,j-1)*w+i]-g[Math.min(h-1,j+1)*w+i]))/10));
+   let r=col[0]*sh,gr=col[1]*sh,b=col[2]*sh;
+   if(hh<0.15){r=0.18;gr=0.45;b=0.76;}else if(W2.rd[k]<5){r=0.18;gr=0.18;b=0.2;}
+   const o=k*4;im.data[o]=Math.min(255,r*255);im.data[o+1]=Math.min(255,gr*255);im.data[o+2]=Math.min(255,b*255);im.data[o+3]=255;}
+  cx.putImageData(im,0,0);}
+ W2.mapCv=mc;
+ // --- smyčka: portály, hláška na vrcholu
+ const prev=window.__wa;let pcd=3,seenTop=false,tt=0;
+ window.__wa=dt=>{if(prev)prev(dt);tt+=dt;pc.ring.rotation.z+=dt*0.6;gate.ring.rotation.z-=dt*0.6;pcd-=dt;
+  if(typeof drv==='undefined'||drv||RIDE||paused)return;
+  if(pcd<=0){
+   if(Math.hypot(P.pos.x-CITY_P.x,P.pos.z-CITY_P.z)<3.2&&P.pos.y<8){pcd=3;seenTop=false;teleportTo({x:S2.x,z:S2.z});toast('🌍 Mapa světa – poušť, led, moře, les a Lanová hora se silnicí až nahoru 🏔',4200);}
+   else if(Math.hypot(P.pos.x-GP.x,P.pos.z-GP.z)<3.2&&P.pos.y<HGT(GP.x,GP.z)+8){pcd=3;teleportTo(homeSpawn());toast('🏙 Zpátky ve městě',1800);}}
+  if(!seenTop&&P.pos.x>3000&&Math.hypot(P.pos.x-tx,P.pos.z-tz)<28&&P.pos.y>ty-3){seenTop=true;toast('🏔 Vrchol Lanové hory – '+W2M.H+' m! Teď se vrať dolů lanem 😎',3600);}};
+ return {S2,GATE,CITY_P,GP,peak:{x:tx,z:tz},roads:W2.roads};
+})();
+
 const START=new V3(0,0.92,-36);
 const P={pos:START.clone(),vel:new V3(),yaw:0,grounded:true,rope:null,phase:0,camYaw:0};
 const holds={l:new Set(),r:new Set(),rope:new Set(),f:new Set(),b:new Set(),aim:new Set(),fire:new Set()};
@@ -1076,7 +1415,7 @@ var PHL=[];
  const clk=()=>{const h=Math.floor(TOD.h),m=Math.floor((TOD.h-h)*60);return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');};
  const WC=[['☀️','Slunečno'],['⛅','Polojasno'],['☁️','Zataženo'],['🌦','Přeháňky'],['⛈','Bouřky']];
  const wxAt=(h,off)=>{let x=Math.sin((Math.floor(Date.now()/1800000)+off)*12.9898)*43758.5453;x-=Math.floor(x);const ci=x<0.4?0:x<0.65?1:x<0.85?2:x<0.95?3:4;return{ci,t:Math.round(11+8*Math.sin((h-9)/24*Math.PI*2)-(ci>=3?3:ci===2?1.5:0))};};
- const apps=()=>{const a=[['m','🎯','Mise'],['g','🔫','Zbraně'],['c','🔧','Tuning'],['bank','🏦','Banka'],['chat','💬','Chat'],['wx','🌦','Počasí'],['map','🗺','Mapa'],['pl','👥','Hráči'],['st','⚙','Nastavení'],['fs','⛶','Celá obr.'],['fish','🎣','Rybaření']];
+ const apps=()=>{const a=[['m','🎯','Mise'],['g','🔫','Zbraně'],['c','🔧','Tuning'],['bank','🏦','Banka'],['chat','💬','Chat'],['wx','🌦','Počasí'],['map','🗺','Mapa'],['pl','👥','Hráči'],['st','⚙','Nastavení'],['fs','⛶','Celá obr.']];
   if(!$('bspawn').hidden)a.push(['sp','🚘','Auta']);if(!$('btod').hidden)a.push(['tod','🌅','Čas']);if(!$('bhk').hidden)a.push(['hk','🕹','Hack']);return a;};
  const EXT={m:()=>togglePanel('m'),g:()=>togglePanel('g'),c:()=>togglePanel('c'),map:()=>openMap(),st:()=>$('bst').click(),sp:()=>togglePanel('s'),tod:()=>togglePanel('d'),hk:()=>$('bhk').click(),adm:()=>$('bpl').click()};
  let app='home',pend=[],note='',iv=0;
@@ -1087,7 +1426,6 @@ var PHL=[];
    const opts=[...MP.players.entries()].map(([id,q])=>'<option value="'+id+'">'+E(q.name)+'</option>').join('');
    const tx=PHX.slice(-8).reverse().map(t=>'<div class="phm" style="display:flex;justify-content:space-between"><span>'+E(t[2])+'</span><b style="color:'+(t[1]>0?'#7dff9b':'#ff7a7a')+'">'+(t[1]>0?'+':'−')+'$'+fm(Math.abs(t[1]))+'</b></div>').join('')||'<div style="opacity:.6">Zatím žádné pohyby.</div>';
    return '<h3 style="margin:4px 0">🏦 Banka</h3><div style="background:#12306a;border-radius:14px;padding:12px"><div style="opacity:.7;font-size:11px">Zůstatek</div><div style="font-size:26px;font-weight:700">$ '+fm(money)+'</div></div><div style="margin:10px 0 4px;font-weight:700">Poslat peníze</div>'+(opts?'<select id="phto">'+opts+'</select><input id="pham" type="number" min="1" placeholder="Částka ($)"><button id="phsend" style="width:100%">Odeslat</button>':'<div style="opacity:.6">Nikdo jiný není online.</div>')+'<div style="color:#ffd166;min-height:16px;margin:4px 0">'+E(note)+'</div><div style="font-weight:700;margin-bottom:2px">Poslední pohyby</div>'+tx;}
-  if(app==='fish')return window.fishPhone?window.fishPhone():'';
   if(app==='chat')return '<h3 style="margin:4px 0">💬 Skupinový chat</h3><div id="phlog" style="flex:1;overflow:auto;min-height:0">'+logHtml()+'</div><div style="display:flex;gap:4px;margin-top:6px"><input id="phci" maxlength="100" placeholder="Napiš zprávu…" style="margin:0"><button id="phcs">➤</button></div>';
   if(app==='wx'){const w=wxAt(TOD.h,0),fc=[1,2,3,4,5,6].map(k=>{const h=(TOD.h+k*2)%24,x=wxAt(h,Math.floor(k/3));return '<div style="text-align:center;flex:1"><div style="opacity:.7;font-size:11px">'+String(Math.floor(h)).padStart(2,'0')+':00</div><div style="font-size:20px">'+WC[x.ci][0]+'</div><div>'+x.t+'°</div></div>';}).join('');
    return '<h3 style="margin:4px 0">🌦 Počasí</h3><div style="text-align:center"><div style="font-size:54px">'+WC[w.ci][0]+'</div><div style="font-size:34px;font-weight:300">'+w.t+' °C</div><div style="opacity:.75">'+WC[w.ci][1]+' · herní čas '+clk()+'</div></div><div style="display:flex;gap:2px;margin-top:14px;background:#12306a55;border-radius:12px;padding:8px">'+fc+'</div>';}
@@ -1097,7 +1435,6 @@ var PHL=[];
  function render(){
   ph.innerHTML='<div id="phb"><span id="phclk">'+clk()+'</span><span>'+(MP.connected?'📶 Online':'📵 Offline')+' 🔋</span></div><div id="phs">'+body()+'</div><div id="phn"><button id="phh">⌂ Domů</button><button id="phx">✕ Zavřít</button></div>';
   ph.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>go(b.dataset.a));
-  ph.querySelectorAll('[data-fb]').forEach(b=>b.onclick=()=>{window.fishBuy&&window.fishBuy(b.dataset.fb);render();});
   $('phh').onclick=()=>go('home');$('phx').onclick=close;
   const s=$('phsend');if(s)s.onclick=send;
   const cs=$('phcs');if(cs){const ci=$('phci'),sd=()=>{const t=ci.value.trim();if(t){chatSend(t);ci.value='';}};cs.onclick=sd;ci.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();sd();}};const lg=$('phlog');lg.scrollTop=lg.scrollHeight;}
@@ -1159,7 +1496,7 @@ function mpTick(now,dt){
  if(MP.connected&&MP.ws&&MP.ws.readyState===1&&!paused&&now-MP.lastSend>55){
   MP.lastSend=now;
   const msg={type:'state',x:P.pos.x,y:P.pos.y,z:P.pos.z,yaw:P.yaw};
-  if(drv&&car)msg.veh={k:car.heli?'heli':car.gtr?'gtr':car.bmw?'m4':car.gw?'gw':car.gle?'gle':car.sc?'sc':'std',c:vehColor(car),pt:+(car.pt||0).toFixed(2)};
+  if(drv&&car)msg.veh={k:car.gtr?'gtr':car.bmw?'m4':car.gw?'gw':car.gle?'gle':car.sc?'sc':'std',c:vehColor(car),pt:+(car.pt||0).toFixed(2)};
   if(!RIDE)MP.ws.send(JSON.stringify(msg));
  }
  for(const q of MP.players.values()){
@@ -1181,8 +1518,7 @@ function mpCarSync(q){
  if(q.carKey!==key){
   if(q.car)scene.remove(q.car);
   let g;
-  if(v.k==='heli'){g=makeHeli();g.userData.paint.color.setHex(v.c);}
-  else if(v.k==='gtr'){g=makeGTR();g.userData.paint.color.setHex(v.c);}
+  if(v.k==='gtr'){g=makeGTR();g.userData.paint.color.setHex(v.c);}
   else if(v.k==='m4'){g=makeM4();g.userData.paint.color.setHex(v.c);}
   else if(v.k==='gw'){g=makeGW();g.userData.paint.color.setHex(v.c);}
   else if(v.k==='gle'){g=makeGLE();g.userData.paint.color.setHex(v.c);}
@@ -1190,7 +1526,7 @@ function mpCarSync(q){
   else g=makeCarMesh(new THREE.MeshStandardMaterial({color:v.c,roughness:0.28,metalness:0.55}));
   scene.add(g);q.car=g;q.carKey=key;
  }
- const gp=q.model.g.position;q.car.visible=true;q.car.position.set(gp.x,gp.y-0.92,gp.z);q.car.rotation.y=q.yaw;if(v.k==='gtr')q.car.rotation.x=v.pt||0;if(v.k==='heli'){const u=q.car.userData;u.tilt.rotation.x=v.pt||0;u.rotor.rotation.y=performance.now()/1000*35;u.trot.rotation.x=performance.now()/1000*40;u.disc.material.opacity=0.16;}
+ const gp=q.model.g.position;q.car.visible=true;q.car.position.set(gp.x,gp.y-0.92,gp.z);q.car.rotation.y=q.yaw;if(v.k==='gtr')q.car.rotation.x=v.pt||0;
 }
 // ===== spolujízda: do každého auta se vejdou 4 lidé, do GT-R 2 (včetně řidiče) =====
 function nearRemote(){let best=null,bd=9;for(const [id,q] of MP.players){if(!q.veh||q.ride)continue;const gp=q.model.g.position,d=Math.hypot(P.pos.x-gp.x,P.pos.z-gp.z);if(d<bd&&Math.abs(P.pos.y-gp.y)<6){bd=d;best={id,d};}}return best;}
@@ -1571,6 +1907,7 @@ const T={t:0,dur:0,kind:'',dir:1};
 const TN={flip:'Salto vpřed',back:'Salto vzad',spin:'Piruetá'};
 function startTrick(k,d){if(P.grounded||T.dur>0)return;T.kind=k;T.t=0;T.dur=k==='spin'?0.6:0.8;T.dir=d||1;}
 function doTrick(){if(paused)return;const st=(holds.r.size>0?1:0)-(holds.l.size>0?1:0);startTrick(st?'spin':holds.b.size>0?'back':'flip',st);}
+function w2k(dx,dz){if(P.pos.x<3000)return 1;const s=HSLOPE(P.pos.x,P.pos.z,dx,dz);let k=1-0.9*s;if(k<0.35)k=0.35;if(k>1.25)k=1.25;if(HGT(P.pos.x,P.pos.z)<-0.3)k*=0.6;return k;}
 function physics(dt){
  const steer=(holds.r.size>0?1:0)-(holds.l.size>0?1:0);
  const tg=currentTarget();
@@ -1604,7 +1941,7 @@ function physics(dt){
   const fb=(holds.f.size>0?1:0)-(holds.b.size>0?1:0),ud=(holds.rope.size>0?1:0)-(holds.aim.size>0?1:0),sp2=22*CH.fspd,kk=Math.min(1,dt*6);
   P.vel.x+=((CAMREL?mdx*sp2:f.x*fb*sp2)-P.vel.x)*kk;P.vel.z+=((CAMREL?mdz*sp2:f.z*fb*sp2)-P.vel.z)*kk;P.vel.y+=(ud*sp2*0.8-P.vel.y)*kk;
  }else if(P.grounded&&!P.rope){
-  const fb=CAMREL?(hasIn?1:0):(holds.f.size>0?1:0)-(holds.b.size>0?0.45:0),ns=fb*11*CH.speed,kk=Math.min(1,dt*(fb?7:2.5));
+  const fb=CAMREL?(hasIn?1:0):(holds.f.size>0?1:0)-(holds.b.size>0?0.45:0),ns=fb*11*CH.speed*w2k(CAMREL?mdx:f.x,CAMREL?mdz:f.z),kk=Math.min(1,dt*(fb?7:2.5));
   P.vel.x+=((CAMREL?mdx:f.x)*ns-P.vel.x)*kk;P.vel.z+=((CAMREL?mdz:f.z)*ns-P.vel.z)*kk;
  }else{
   const rate=P.rope?1.6:1.1;
@@ -1612,6 +1949,7 @@ function physics(dt){
  }
  if(P.rope){P.vel.addScaledVector(f,(CH.ropeboost?45:15)*dt);P.rope.L=Math.max(8,P.rope.L-(CH.ropeboost?14:4)*dt);}
  const sp=P.vel.length();if(sp>85)P.vel.multiplyScalar(85/sp);
+ const W2pp={x:P.pos.x,z:P.pos.z};
  P.pos.addScaledVector(P.vel,dt);
  if(P.rope){
   const d=P.pos.clone().sub(P.rope.a),dist=d.length();
@@ -1619,7 +1957,13 @@ function physics(dt){
  }
  const impactVy=P.vel.y;
  let ground=false;
- if(P.pos.y<=0.92){P.pos.y=0.92;if(P.vel.y<0)P.vel.y=0;ground=true;}
+ let gh=HGT(P.pos.x,P.pos.z);
+ if(P.pos.x>3000&&!CH.noclip){ // terén: strmé svahy a hluboká voda jsou zeď
+  const mv=Math.hypot(P.pos.x-W2pp.x,P.pos.z-W2pp.z),og=HGT(W2pp.x,W2pp.z);
+  if(!CH.fly&&((gh+0.92-P.pos.y>(P.grounded?1.35*mv+0.1:0.55))||(gh<-3.6&&og>=-3.6))){P.pos.x=W2pp.x;P.pos.z=W2pp.z;P.vel.x*=0.3;P.vel.z*=0.3;gh=og;}
+ }
+ if(P.pos.y<=gh+0.92){P.pos.y=gh+0.92;if(P.vel.y<0)P.vel.y=0;ground=true;}
+ else if(P.pos.x>3000&&P.grounded&&!P.rope&&!CH.fly&&P.vel.y<=0.5&&P.pos.y-(gh+0.92)<0.9){P.pos.y=gh+0.92;P.vel.y=0;ground=true;}
  const HW=0.45,HH=0.92;
  for(const b of (CH.noclip?[]:boxes)){
   if(P.pos.x>b.min.x-HW&&P.pos.x<b.max.x+HW&&P.pos.z>b.min.z-HW&&P.pos.z<b.max.z+HW&&P.pos.y>b.min.y-HH&&P.pos.y<b.max.y+HH){
@@ -1634,8 +1978,9 @@ function physics(dt){
  }
  if(ground&&!P.grounded&&impactVy<-FALL_SAFE&&!CH.fly&&!CH.noclip&&!CH.god)fallHurt(-impactVy);
  P.grounded=ground;
- if(P.pos.x>MB.x1){P.pos.x=MB.x1;P.vel.x=Math.min(0,P.vel.x);}if(P.pos.x<MB.x0){P.pos.x=MB.x0;P.vel.x=Math.max(0,P.vel.x);}
- if(P.pos.z>MB.z){P.pos.z=MB.z;P.vel.z=Math.min(0,P.vel.z);}if(P.pos.z<-MB.z){P.pos.z=-MB.z;P.vel.z=Math.max(0,P.vel.z);}
+ {const MBc=P.pos.x>3000?W2B:MB;
+ if(P.pos.x>MBc.x1){P.pos.x=MBc.x1;P.vel.x=Math.min(0,P.vel.x);}if(P.pos.x<MBc.x0){P.pos.x=MBc.x0;P.vel.x=Math.max(0,P.vel.x);}
+ if(P.pos.z>MBc.z){P.pos.z=MBc.z;P.vel.z=Math.min(0,P.vel.z);}if(P.pos.z<-MBc.z){P.pos.z=-MBc.z;P.vel.z=Math.max(0,P.vel.z);}}
  if(P.grounded)P.phase+=Math.hypot(P.vel.x,P.vel.z)*dt*0.9;else P.phase+=dt*6;
 }
 
@@ -1684,7 +2029,7 @@ function poseHero(dt){
   const tg=-1.25+run*0.85+fall*1.1-rise*0.15+(P.rope?0.4:0); // -1.25 = visí dolů vlivem gravitace
   S.v+=((tg-S.a)*80-S.v*10)*td;S.a+=S.v*td;
   hero.scarf.rotation.set(Math.max(-1.45,Math.min(0.9,S.a))+Math.sin(P.phase*0.7)*0.07*run,Math.sin(P.phase*0.5)*0.12*run,0);}
- let top=0;for(const b of boxes){if(P.pos.x>=b.min.x&&P.pos.x<=b.max.x&&P.pos.z>=b.min.z&&P.pos.z<=b.max.z&&b.max.y<=P.pos.y+0.1&&b.max.y>top)top=b.max.y;}
+ let top=HGT(P.pos.x,P.pos.z);for(const b of boxes){if(P.pos.x>=b.min.x&&P.pos.x<=b.max.x&&P.pos.z>=b.min.z&&P.pos.z<=b.max.z&&b.max.y<=P.pos.y+0.1&&b.max.y>top)top=b.max.y;}
  shadow.position.set(P.pos.x,top+0.07,P.pos.z);const sc=Math.max(0.35,1-(P.pos.y-top)/60);shadow.scale.setScalar(sc);shadow.material.opacity=0.35*sc;
  if(P.rope){
   hg.updateMatrixWorld(true);
@@ -1697,7 +2042,7 @@ function poseHero(dt){
 }
 const camPos=new V3(0,8,-14),look=new V3();
 function updateCamera(dt){if(GAR.ph){garCam(dt);return;}
- aimOn=holds.aim.size>0&&!paused&&!(drv&&car&&(car.gtr&&car.fly||car.heli));if(camFree()){if(aimOn){if(!window.__wasAim)P.yaw=P.camYaw;P.camYaw=P.yaw;}window.__wasAim=aimOn;}
+ aimOn=holds.aim.size>0&&!paused&&!(drv&&car&&car.gtr&&car.fly);if(camFree()){if(aimOn){if(!window.__wasAim)P.yaw=P.camYaw;P.camYaw=P.yaw;}window.__wasAim=aimOn;}
  else{window.__wasAim=aimOn;P.camYaw+=angDiff(P.yaw,P.camYaw)*Math.min(1,dt*(aimOn?10:3));}
  const hs=Math.hypot(P.vel.x,P.vel.z);
  camera.fov+=((aimOn?42:64+Math.min(30,hs*0.4))-camera.fov)*Math.min(1,dt*(aimOn?8:3));camera.updateProjectionMatrix();
@@ -1714,7 +2059,7 @@ function updateCamera(dt){if(GAR.ph){garCam(dt);return;}
  let lim=dl;for(const b of boxes){const t=rayBox(focus,dir,b,dl);if(t>0&&t<lim)lim=t-0.8;}
  if(lim<dl)want.copy(focus).addScaledVector(dir,Math.max(2,lim));
  camPos.lerp(want,1-Math.exp(-dt*7));
- if(camPos.y<1.2)camPos.y=1.2;
+ {const cg_=HGT(camPos.x,camPos.z);if(camPos.y<cg_+1.2)camPos.y=cg_+1.2;}
  camera.position.copy(camPos);look.lerp(focus,1-Math.exp(-dt*10));camera.lookAt(look);
 }
 function animateWorld(dt,time){if(window.__wa)window.__wa(dt);
@@ -1792,7 +2137,7 @@ $('bmenu').addEventListener('click',()=>togglePanel('m'));$('bgun').addEventList
 const CARCOL=[['Červená',0xc0262d],['Modrá',0x2457c5],['Žlutá',0xf2c200],['Zelená',0x1f9d55],['Oranžová',0xf27a1a],['Bílá',0xf2f2f2],['Černá',0x1a1a1a],['Fialová',0x7a3cc4],['Růžová',0xff4fa8]];
 const PR={armor:[800,1800,3500],engine:[700,1600,3200],spoiler:[400,1200]};
 let drv=false;
-const maxHp=()=>car.own?100+TUNE.armor*75:(car.gtr?10000:car.heli?300:car.bmw?150:car.gle?220:car.sc?180:car.gw?250:100);
+const maxHp=()=>car.own?100+TUNE.armor*75:(car.gtr?10000:car.bmw?150:car.gle?220:car.sc?180:car.gw?250:100);
 const home=mkVeh(3,-41.6,Math.PI/2,'parked',0xc0262d);home.own=true;car=home;carG=home.g;
 const SM=(c,r,m)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
 const bodyM=home.g.children[0].material,glassM=SM(0x16212c,0.08,0.5),steelM=SM(0x4d535a,0.4,0.7),blackM=SM(0x15171a,0.6,0.2);
@@ -1833,9 +2178,9 @@ function renderTune(){
  if(tgt()!==home){panel.querySelectorAll('[data-k]').forEach(b=>b.style.display='none');const h=panel.querySelector('h2');h.textContent='Tuning – vzhled auta';h.insertAdjacentHTML('afterend','<p style="font-size:12px;opacity:.75;margin:2px 0 6px">Motor, pancíř a spoiler jsou jen pro tvoje červené auto. Tady: barva, povrch laku a neon.</p>');}
  $('bcl').onclick=()=>{panel.hidden=true;paused=false;};
 }
-function exitCar(silent){if(car&&car.heli){car.y=0;car.vy=0;car.pt=0;car.rl=0;}if(car&&car.gtr){car.fly=false;car.y=0;car.vy=0;car.pt=0;car.g.rotation.x=0;car.g.position.y=0;}drv=false;car.mode='parked';hero.g.visible=true;P.pos.set(car.x+Math.cos(car.yaw)*3.2,0.92,car.z-Math.sin(car.yaw)*3.2);P.vel.set(0,0,0);P.rope=null;P.grounded=true;car.sp=0;if(!silent)toast('Vystoupil jsi z auta.',1200);}
+function exitCar(silent){if(car&&car.gtr){car.fly=false;car.y=0;car.vy=0;car.pt=0;car.g.rotation.x=0;car.g.position.y=HGT(car.x,car.z);}drv=false;car.mode='parked';hero.g.visible=true;P.pos.set(car.x+Math.cos(car.yaw)*3.2,0.92+HGT(car.x+Math.cos(car.yaw)*3.2,car.z-Math.sin(car.yaw)*3.2),car.z-Math.sin(car.yaw)*3.2);P.vel.set(0,0,0);P.rope=null;P.grounded=true;car.sp=0;if(!silent)toast('Vystoupil jsi z auta.',1200);}
 function toggleCar(){
- if(paused||GAR.ph)return;if(RIDE){rideLeave();return;}if(drv){if(car.heli&&car.y>1.5){toast('Nejdřív přistaň (MÍŘIT = dolů).',1800);return;}exitCar();return;}
+ if(paused||GAR.ph)return;if(RIDE){rideLeave();return;}if(drv){exitCar();return;}
  {const nr=nearRemote(),ld=nearV?Math.hypot(P.pos.x-nearV.x,P.pos.z-nearV.z):1e9;if(nr&&nr.d<ld){rideBoard(nr.id);return;}}
  if(!nearV){toast('Jdi blíž k autu (do 9 m) a stiskni Auto / G.',2000);return;}
  if(nearV.gtr&&!isCreator&&(nearV.ap||!GTR.ok)){toast(nearV.ap?'GT-R právě odjíždí do Matýskovy vily 🏔':'Tohle GT-R patří Matýskovi 🔒',2200);return;}
@@ -1909,7 +2254,11 @@ function garUpdate(dt){
 function garCam(dt){const k=1-Math.exp(-dt*2.6);camPos.lerp(new V3(SHOP.x+4.5,2.3,SHOP.z+13.5),k);camera.position.copy(camPos);
  look.lerp(new V3(car.x,1.1,car.z),k*1.5);camera.lookAt(look);camera.fov+=(55-camera.fov)*k;camera.updateProjectionMatrix();}
 const mmc=$('mm').getContext('2d');
-function drawMap(){const g=mmc,X=x=>(x-MB.x0)/(MB.x1-MB.x0)*120,Y=z=>(z+MB.z)/(2*MB.z)*66;g.clearRect(0,0,120,66);MB.zones.forEach(q=>{g.fillStyle=q[4];g.fillRect(X(q[0]),Y(q[2]),X(q[1])-X(q[0]),Y(q[3])-Y(q[2]));});g.strokeStyle='#8a94a6';ROADS.forEach(r=>{g.beginPath();g.moveTo(X(-450),Y(r));g.lineTo(X(450),Y(r));g.stroke();});[-36,36].forEach(r=>{g.beginPath();g.moveTo(X(MB.x0),Y(r));g.lineTo(X(MB.x1),Y(r));g.stroke();});g.beginPath();g.moveTo(X(0),Y(-MB.z));g.lineTo(X(0),Y(MB.z));g.stroke();
+function drawMap2(){const g=mmc,X=x=>16+(x-W2.x0)/W2.W*88,Y=z=>(z-W2.z0)/W2.D*66;g.clearRect(0,0,120,66);g.drawImage(W2.mapCv,16,0,88,66);
+ g.fillStyle='#fff';g.beginPath();g.moveTo(X(W2M.x),Y(W2M.z)-5);g.lineTo(X(W2M.x)+4,Y(W2M.z)+2);g.lineTo(X(W2M.x)-4,Y(W2M.z)+2);g.closePath();g.fill();
+ g.save();g.translate(X(P.pos.x),Y(P.pos.z));g.rotate(Math.PI-(drv&&car?car.yaw:P.yaw));g.scale(4.6,4.6);
+ g.beginPath();g.moveTo(0,-1);g.lineTo(0.82,0.95);g.lineTo(0,0.5);g.lineTo(-0.82,0.95);g.closePath();g.fillStyle='#fff';g.fill();g.lineWidth=0.3;g.lineJoin='round';g.strokeStyle='#0b1424';g.stroke();g.restore();}
+function drawMap(){if(P.pos.x>3000){drawMap2();return;}const g=mmc,X=x=>(x-MB.x0)/(MB.x1-MB.x0)*120,Y=z=>(z+MB.z)/(2*MB.z)*66;g.clearRect(0,0,120,66);MB.zones.forEach(q=>{g.fillStyle=q[4];g.fillRect(X(q[0]),Y(q[2]),X(q[1])-X(q[0]),Y(q[3])-Y(q[2]));});g.strokeStyle='#8a94a6';ROADS.forEach(r=>{g.beginPath();g.moveTo(X(-450),Y(r));g.lineTo(X(450),Y(r));g.stroke();});[-36,36].forEach(r=>{g.beginPath();g.moveTo(X(MB.x0),Y(r));g.lineTo(X(MB.x1),Y(r));g.stroke();});g.beginPath();g.moveTo(X(0),Y(-MB.z));g.lineTo(X(0),Y(MB.z));g.stroke();
  g.fillStyle='#ffd23f';g.fillRect(X(SHOP.x)-3,Y(SHOP.z)-3,6,6);g.strokeStyle='#35e0ff';g.lineWidth=1;g.strokeRect(X(SHOP.x)-4.5,Y(SHOP.z)-4.5,9,9);g.font='8px sans-serif';g.fillStyle='#fff';g.fillText('🔧',X(SHOP.x)+6,Y(SHOP.z)+3);const fl=Math.floor(performance.now()/200)%2;
  VEH.forEach(v=>{if(v.cop){g.fillStyle=fl?'#ff3030':'#3a7bff';g.fillRect(X(v.x)-2,Y(v.z)-2,4,4);}});
  if(GW.map&&VEH.includes(GW.map)){g.fillStyle='#ff9f1c';g.fillRect(X(GW.map.x)-2.5,Y(GW.map.z)-2.5,5,5);}
@@ -1923,17 +2272,17 @@ function vehUpdate(dt){
    if(v.mode==='chase'){const tx=drv?car.x:P.pos.x,tz=drv?car.z:P.pos.z;let df=Math.atan2(tx-v.x,tz-v.z)-v.yaw;df=Math.atan2(Math.sin(df),Math.cos(df));v.yaw+=Math.max(-2.4*dt,Math.min(2.4*dt,df))*(v.sp>2?1:0.3);v.v=25;}
    v.stun-=dt;let tgt=v.stun>0?0:v.v;const s=Math.sin(v.yaw),c=Math.cos(v.yaw);
    for(const w of (v.mode==='chase'?[]:VEH)){if(w===v)continue;const dx=w.x-v.x,dz=w.z-v.z;if(dx*s+dz*c>0&&dx*s+dz*c<9&&Math.abs(dx*c-dz*s)<2.4){tgt=0;break;}}
-   v.sp+=(tgt-v.sp)*Math.min(1,(tgt?1.2:4)*dt);v.x+=s*v.sp*dt;v.z+=c*v.sp*dt;if(v.mode==='npc'){v.z+=(v.lz-v.z)*Math.min(1,dt);if(v.x>(v.hi||440))v.x=(v.lo||-440);else if(v.x<(v.lo||-440))v.x=(v.hi||440);}else{v.x=Math.max(MB.x0,Math.min(MB.x1,v.x));v.z=Math.max(-MB.z,Math.min(MB.z,v.z));if(carBoxes(v))v.sp*=0.5;}
-   if(!drv&&v.sp>3&&hitCd<=0&&P.pos.y<2.6){const dx=P.pos.x-v.x,dz=P.pos.z-v.z;
+   v.sp+=(tgt-v.sp)*Math.min(1,(tgt?1.2:4)*dt);v.x+=s*v.sp*dt;v.z+=c*v.sp*dt;if(v.mode==='npc'){v.z+=(v.lz-v.z)*Math.min(1,dt);if(v.x>(v.hi||440))v.x=(v.lo||-440);else if(v.x<(v.lo||-440))v.x=(v.hi||440);}else{{const B=v.x>3000?W2B:MB;v.x=Math.max(B.x0,Math.min(B.x1,v.x));v.z=Math.max(-B.z,Math.min(B.z,v.z));}for(const b of boxes){if(b.min.y>1)continue;if(v.x>b.min.x-2.2&&v.x<b.max.x+2.2&&v.z>b.min.z-2.2&&v.z<b.max.z+2.2){const pl=v.x+2.2-b.min.x,pr=b.max.x-(v.x-2.2),pb=v.z+2.2-b.min.z,pf=b.max.z-(v.z-2.2),m=Math.min(pl,pr,pb,pf);if(m===pl)v.x=b.min.x-2.2;else if(m===pr)v.x=b.max.x+2.2;else if(m===pb)v.z=b.min.z-2.2;else v.z=b.max.z+2.2;v.sp*=0.5;}}}
+   if(!drv&&v.sp>3&&hitCd<=0&&P.pos.y-HGT(P.pos.x,P.pos.z)<2.6){const dx=P.pos.x-v.x,dz=P.pos.z-v.z;
     if(Math.abs(dx*s+dz*c)<2.7&&Math.abs(dx*c-dz*s)<1.3){const d=Math.min(55,8+v.sp*2.2);hpP-=d;hitCd=1.2;P.vel.set(s*v.sp*0.7,7,c*v.sp*0.7);P.grounded=false;P.rope=null;blood(P.pos.clone(),14,4);toast('Auto tě srazilo! −'+Math.round(d)+' HP',1500);
      if(hpP<=0){const m=Math.min(money,100);addMoney(-m);toast('Byl jsi přejet! Respawn'+(m?' (−$'+m+')':''),2200);hpP=100;respawn();setWanted(false);}}}
   }
-  if(!drv){const d=Math.hypot(P.pos.x-v.x,P.pos.z-v.z);if(d<nd&&P.pos.y<5){nd=d;nearV=v;}}
+  if(!drv){const d=Math.hypot(P.pos.x-v.x,P.pos.z-v.z);if(d<nd&&P.pos.y-HGT(P.pos.x,P.pos.z)<5){nd=d;nearV=v;}}
  }
- if(drv&&!(car.y>2.5)){for(const w of VEH){if(w===car)continue;if(Math.abs((w.y||0)-(car.y||0))>2.5)continue;const cc=carPair(car,w);
-  if(cc){const dx=cc.dx,dz=cc.dz,d=cc.d,o=cc.o,rv=Math.abs(car.sp-(w.mode==='player'?0:w.sp));car.x-=dx/d*o*0.6;car.z-=dz/d*o*0.6;w.x+=dx/d*o*0.4;w.z+=dz/d*o*0.4;if(rv>5)crash(rv);if(w.mode==='npc')w.stun=1.5;}}
+ if(drv&&!(car.y>2.5)){for(const w of VEH){if(w===car)continue;const dx=w.x-car.x,dz=w.z-car.z,d=Math.hypot(dx,dz);
+  if(d<3.6&&d>0.01){const o=3.6-d,rv=Math.abs(car.sp-(w.mode==='player'?0:w.sp));car.x-=dx/d*o*0.6;car.z-=dz/d*o*0.6;w.x+=dx/d*o*0.4;w.z+=dz/d*o*0.4;if(rv>5)crash(rv);if(w.mode==='npc')w.stun=1.5;}}
   for(const n of NPCS){if(n.alive&&Math.abs(car.sp)>6&&Math.hypot(n.g.position.x-car.x,n.g.position.z-car.z)<2.4)hurt(n,300,false,n.g.position.clone().add(new V3(0,1,0)));}}
- copUpdate(dt);for(const v of VEH){if(v.ap)gtrAuto(v,dt);v.g.position.set(v.x,v.y||0,v.z);v.g.rotation.y=v.yaw;if(v.gtr)gtrFx(v);if(v.heli)heliFx(v,dt);if(v.cop){const f=Math.floor(performance.now()/180)%2;v.lr.visible=f===0;v.lb.visible=f===1;}}
+ copUpdate(dt);for(const v of VEH){if(v.ap)gtrAuto(v,dt);v.g.position.set(v.x,(v.y||0)+HGT(v.x,v.z),v.z);v.g.rotation.y=v.yaw;if(v.gtr)gtrFx(v);if(v.cop){const f=Math.floor(performance.now()/180)%2;v.lr.visible=f===0;v.lb.visible=f===1;}}
  if(hpP<100&&hitCd<-5)hpP=Math.min(100,hpP+2*dt);
 }
 function crash(v){
@@ -1942,83 +2291,7 @@ function crash(v){
  car.sp*=-0.3;
  if(car.hp<=0){const c=Math.min(money,150);addMoney(-c);car.hp=maxHp();car.sp=0;toast('Auto je rozbité – oprava'+(c?' $'+c:'')+'.',2200);}
 }
-// ===== Orientované hitboxy aut (3 kruhy podél karoserie) + vrtulník =====
-function carBoxes(o){const hv=!!o.heli,R=hv?1.2:1,K=hv?[-2,0,1.3]:[-1.35,0,1.35],y=o.y||0,s=Math.sin(o.yaw),c=Math.cos(o.yaw);let hit=false;
- for(const b of boxes){if(hv){if(y>b.max.y+0.1||y+2.8<b.min.y)continue;}else if(b.min.y>1||y>3)continue;
-  if(o.x<b.min.x-5||o.x>b.max.x+5||o.z<b.min.z-5||o.z>b.max.z+5)continue;
-  for(const k of K){const px=o.x+s*k,pz=o.z+c*k,qx=Math.max(b.min.x,Math.min(b.max.x,px)),qz=Math.max(b.min.z,Math.min(b.max.z,pz)),dx=px-qx,dz=pz-qz,d=Math.hypot(dx,dz);
-   if(d<R){let nx,nz,pu;if(d>1e-4){nx=dx/d;nz=dz/d;pu=R-d;}else{const pl=px-b.min.x,pr=b.max.x-px,pb=pz-b.min.z,pf=b.max.z-pz,m=Math.min(pl,pr,pb,pf);pu=m+R;if(m===pl){nx=-1;nz=0;}else if(m===pr){nx=1;nz=0;}else if(m===pb){nx=0;nz=-1;}else{nx=0;nz=1;}}
-    o.x+=nx*pu;o.z+=nz*pu;hit=true;}}}
- return hit;}
-function carPair(a,b){if(Math.hypot(b.x-a.x,b.z-a.z)>6)return null;const K=[-1.35,0,1.35],sa=Math.sin(a.yaw),ca=Math.cos(a.yaw),sb=Math.sin(b.yaw),cb=Math.cos(b.yaw);let best=null;
- for(const i of K)for(const j of K){const dx=b.x+sb*j-(a.x+sa*i),dz=b.z+cb*j-(a.z+ca*i),d=Math.hypot(dx,dz);if(d<2&&d>0.01&&(!best||d<best.d))best={dx,dz,d,o:2-d};}
- return best;}
-function makeHeli(){const g=new THREE.Group(),t=new THREE.Group();g.add(t);
- const paint=new THREE.MeshStandardMaterial({color:0xc8202a,roughness:0.3,metalness:0.5}),dk=new THREE.MeshStandardMaterial({color:0x222428,roughness:0.6,metalness:0.4}),wh=new THREE.MeshStandardMaterial({color:0xf2f2f2,roughness:0.35,metalness:0.3}),gl=new THREE.MeshStandardMaterial({color:0x1b2a38,roughness:0.05,metalness:0.7}),mt=new THREE.MeshStandardMaterial({color:0x8a8f96,roughness:0.4,metalness:0.8});
- const add=(geo,m,x,y,z,p)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);o.castShadow=true;(p||t).add(o);return o;};
- // trup: kabina, spodek, přední sklo, boční okna, dveře, pruh
- add(new THREE.SphereGeometry(1,20,14),paint,0,1.4,0.1).scale.set(1.2,1.1,2.1);
- add(new THREE.BoxGeometry(1.7,0.35,3.0),dk,0,0.5,0.1);
- add(new THREE.SphereGeometry(1,18,12),gl,0,1.55,1.2).scale.set(1.02,0.82,1.05);
- add(new THREE.BoxGeometry(2.46,0.16,3.3),wh,0,1.2,0.1).scale.set(1,1,1);
- for(const s of [-1,1]){add(new THREE.BoxGeometry(0.04,0.55,0.95),gl,s*1.19,1.65,0.55);add(new THREE.BoxGeometry(0.04,0.55,0.8),gl,s*1.12,1.65,-0.65);add(new THREE.BoxGeometry(0.05,0.9,0.03),dk,s*1.2,1.35,-0.05);}
- // motor, výfuky, nosič rotoru
- add(new THREE.CylinderGeometry(0.55,0.65,1.7,12),paint,0,2.45,-0.2).rotation.x=Math.PI/2;
- for(const s of [-1,1])add(new THREE.CylinderGeometry(0.12,0.1,0.5,8),mt,s*0.35,2.35,-1.2).rotation.x=Math.PI/2;
- add(new THREE.CylinderGeometry(0.11,0.14,0.55,8),mt,0,2.95,0.1);
- // ocasní nosník, stabilizátory, ocasní kolo
- add(new THREE.CylinderGeometry(0.17,0.4,4.2,10),paint,0,1.75,-3.0).rotation.x=Math.PI/2;
- add(new THREE.BoxGeometry(0.1,1.5,1.0),paint,0,2.35,-4.9).rotation.x=-0.25;
- add(new THREE.BoxGeometry(1.8,0.07,0.55),paint,0,1.9,-4.5);
- add(new THREE.BoxGeometry(0.1,0.3,0.7),wh,0,2.9,-5.2);
- // světla: červené/zelené navigační + reflektor
- add(new THREE.SphereGeometry(0.09,8,6),new THREE.MeshBasicMaterial({color:0xff2222}),-0.9,1.9,-4.5);
- add(new THREE.SphereGeometry(0.09,8,6),new THREE.MeshBasicMaterial({color:0x22ff66}),0.9,1.9,-4.5);
- add(new THREE.SphereGeometry(0.2,10,8),new THREE.MeshBasicMaterial({color:0xfff6c8}),0,0.55,1.5);
- // lyže + vzpěry
- for(const s of [-1,1]){add(new THREE.CylinderGeometry(0.06,0.06,3.4,8),dk,s*1.05,0.12,0.2).rotation.x=Math.PI/2;for(const z of [-0.6,1.0]){const st=add(new THREE.CylinderGeometry(0.04,0.04,0.95,6),dk,s*1.0,0.58,z);st.rotation.z=s*0.12;}}
- // hlavní rotor (4 listy) + rozmazaný disk
- const rotor=new THREE.Group();rotor.position.set(0,3.25,0.1);t.add(rotor);
- for(let i=0;i<2;i++){const b=add(new THREE.BoxGeometry(9.6,0.05,0.4),dk,0,0,0,rotor);b.rotation.y=i*Math.PI/2;}
- const disc=new THREE.Mesh(new THREE.CircleGeometry(4.8,32),new THREE.MeshBasicMaterial({color:0xcccccc,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false}));disc.rotation.x=-Math.PI/2;disc.position.set(0,3.25,0.1);t.add(disc);
- // ocasní rotor
- const trot=new THREE.Group();trot.position.set(0.28,2.35,-5.0);t.add(trot);
- add(new THREE.BoxGeometry(0.05,1.6,0.16),dk,0,0,0,trot);add(new THREE.BoxGeometry(0.05,0.16,1.6),dk,0,0,0,trot);
- g.userData={paint,rotor,trot,tilt:t,disc};return g;}
-function heliFx(v,dt){const u=v.g.userData,on=drv&&car===v;v.rs=(v.rs||0)+((on?1:0)-(v.rs||0))*Math.min(1,1.5*dt);u.rotor.rotation.y+=v.rs*dt*35;u.trot.rotation.x+=v.rs*dt*40;u.tilt.rotation.x=v.pt||0;u.tilt.rotation.z=v.rl||0;u.disc.material.opacity=0.16*v.rs;}
-function heliPhys(dt){
- const fw=canDrive&&holds.f.size>0,bk=canDrive&&holds.b.size>0,st=(holds.r.size>0?1:0)-(holds.l.size>0?1:0),up=holds.rope.size>0,dn=holds.aim.size>0;
- car.cd-=dt;
- if(fw)car.sp+=30*dt*Math.max(0.1,1-car.sp/62);else if(bk)car.sp-=(car.sp>0?30:14)*dt;else car.sp*=1-Math.min(1,0.8*dt);
- car.sp=Math.max(-18,Math.min(60,car.sp));
- car.yaw-=st*1.7*dt;
- const tv=up?18:dn?-18:0;car.vy=(car.vy||0)+(tv-(car.vy||0))*Math.min(1,3*dt);car.y=Math.min(300,(car.y||0)+car.vy*dt);if(car.y<=0){car.y=0;if(car.vy<0)car.vy=0;}
- car.x+=Math.sin(car.yaw)*car.sp*dt;car.z+=Math.cos(car.yaw)*car.sp*dt;
- if(carBoxes(car)){crash(Math.abs(car.sp));}
- car.x=Math.max(MB.x0,Math.min(MB.x1,car.x));car.z=Math.max(-MB.z,Math.min(MB.z,car.z));
- car.pt+=((Math.max(-1,Math.min(1,car.sp/60))*0.22)-car.pt)*Math.min(1,4*dt);car.rl+=((st*0.18*Math.min(1,0.3+Math.abs(car.sp)/30))-car.rl)*Math.min(1,4*dt);
- P.pos.set(car.x,0.92+car.y,car.z);P.yaw=car.yaw;P.vel.set(Math.sin(car.yaw)*car.sp,0,Math.cos(car.yaw)*car.sp);P.grounded=true;
- carG.position.set(car.x,car.y,car.z);carG.rotation.y=car.yaw;}
-const HELI={v:null};
-function spawnHeli(){
- if(!(isCreator||isHelper)){toast('Spawn aut je jen pro Nazika a Matýska.',2200);return false;}
- const cur=HELI.v;if(cur&&drv&&car===cur){toast('Nejdřív vystup z vrtulníku.',1800);return false;}
- const px=P.pos.x,pz=P.pos.z,yaw=P.yaw;let pos=null;
- for(const a of [0,0.9,-0.9,1.8,-1.8,3.14]){
-  const x=px+Math.sin(yaw+a)*12,z=pz+Math.cos(yaw+a)*12;
-  if(x<MB.x0+8||x>MB.x1-8||Math.abs(z)>MB.z-8)continue;
-  let ok=true;for(const b of boxes){if(b.min.y>1)continue;if(x>b.min.x-6&&x<b.max.x+6&&z>b.min.z-6&&z<b.max.z+6){ok=false;break;}}
-  if(ok)for(const w of VEH){if(w!==cur&&Math.hypot(w.x-x,w.z-z)<8){ok=false;break;}}
-  if(ok){pos=[x,z];break;}
- }
- if(!pos)pos=[px+Math.sin(yaw)*12,pz+Math.cos(yaw)*12];
- if(!cur){const g=makeHeli();scene.add(g);const v={x:pos[0],z:pos[1],lz:pos[1],yaw,sp:0,hp:300,cd:0,stun:0,mode:'parked',v:0,g,heli:true,y:0,vy:0,pt:0,rl:0};VEH.push(v);HELI.v=v;}
- else{cur.x=pos[0];cur.z=pos[1];cur.lz=pos[1];cur.yaw=yaw;cur.sp=0;cur.y=0;cur.vy=0;cur.hp=300;cur.mode='parked';}
- HELI.v.g.position.set(HELI.v.x,0,HELI.v.z);HELI.v.g.rotation.y=HELI.v.yaw;
- toast('Vrtulník je před tebou – nastup (Auto / G). LANO = nahoru, MÍŘIT = dolů.',3000);return true;
-}
 function carPhysics1(dt){
- if(car.heli){heliPhys(dt);return;}
  const en=car.own?TUNE.engine:0,sp_=car.own?TUNE.spoiler:0,maxS=car.gtr?114:car.bmw?74:car.gle?64:car.sc?58:car.gw?52:32+en*10,acc=car.gtr?50:car.bmw?34:car.gle?32:car.sc?28:car.gw?26:14+en*5,fw=canDrive&&holds.f.size>0,bk=canDrive&&holds.b.size>0,st=(holds.r.size>0?1:0)-(holds.l.size>0?1:0);
  car.cd-=dt;
  if(fw)car.sp+=(car.sp<0?40:acc*Math.max(0.05,1-car.sp/(maxS*1.05)))*dt;
@@ -2028,15 +2301,28 @@ function carPhysics1(dt){
  car.sp=Math.min(car.sp,car.bmw?69.4:maxS);
  const grip=26+sp_*12+(car.bmw?40:0)+(car.gw?25:0)+(car.gle?32:0)+(car.sc?28:0)+(car.gtr?70:0);
  car.yaw-=st*Math.sign(car.sp)*Math.min(1,Math.abs(car.sp)/5)*(2.1/(1+Math.abs(car.sp)/grip))*dt;
- car.x+=Math.sin(car.yaw)*car.sp*dt;car.z+=Math.cos(car.yaw)*car.sp*dt;
- if((car.y||0)<=3&&carBoxes(car))crash(Math.abs(car.sp));
+ const ox_=car.x,oz_=car.z;car.x+=Math.sin(car.yaw)*car.sp*dt;car.z+=Math.cos(car.yaw)*car.sp*dt;
+ if(car.x>3000&&!(car.y>1)){const g0=HGT(ox_,oz_),g1=HGT(car.x,car.z),mv=Math.hypot(car.x-ox_,car.z-oz_)||1e-6,sl=(g1-g0)/mv;
+  if(sl>0.55||(g1<-3.6&&g0>=-3.6)){car.x=ox_;car.z=oz_;if(Math.abs(car.sp)>8)crash(Math.abs(car.sp)*0.6);car.sp*=-0.2;}
+  else{const hs_=HSLOPE(car.x,car.z,Math.sin(car.yaw),Math.cos(car.yaw));car.sp-=9.8*hs_/Math.sqrt(1+hs_*hs_)*0.8*dt;}}
+ const Rr=2.2;
+ for(const b of boxes){if(b.min.y>1||car.y>3)continue;
+  if(car.x>b.min.x-Rr&&car.x<b.max.x+Rr&&car.z>b.min.z-Rr&&car.z<b.max.z+Rr){
+   const pl=car.x+Rr-b.min.x,pr=b.max.x-(car.x-Rr),pb=car.z+Rr-b.min.z,pf=b.max.z-(car.z-Rr),m=Math.min(pl,pr,pb,pf);
+   if(m===pl)car.x=b.min.x-Rr;else if(m===pr)car.x=b.max.x+Rr;else if(m===pb)car.z=b.min.z-Rr;else car.z=b.max.z+Rr;
+   crash(Math.abs(car.sp));
+  }
+ }
  if(car.gtr){const up=holds.rope.size>0,dn=holds.aim.size>0;
   if(car.fly){const tv=up?32:dn?-32:0;car.vy+=(tv-car.vy)*Math.min(1,3*dt);car.y=Math.min(250,car.y+car.vy*dt);if(car.y<=0){car.y=0;car.vy=Math.max(0,car.vy);if(dn)car.fly=false;}}
   else if(car.y>0){car.vy-=34*dt;car.y+=car.vy*dt;if(car.y<=0){car.y=0;car.vy=0;}}
   car.pt+=((-Math.max(-1,Math.min(1,car.vy/32))*0.38)-car.pt)*Math.min(1,6*dt);}
- car.x=Math.max(MB.x0,Math.min(MB.x1,car.x));car.z=Math.max(-MB.z,Math.min(MB.z,car.z));
- P.pos.set(car.x,0.92+(car.y||0),car.z);P.yaw=car.yaw;P.vel.set(Math.sin(car.yaw)*car.sp,0,Math.cos(car.yaw)*car.sp);P.grounded=true;
- carG.position.set(car.x,car.y||0,car.z);carG.rotation.y=car.yaw;if(car.gtr)carG.rotation.x=car.pt||0;
+ {const B=car.x>3000?W2B:MB;car.x=Math.max(B.x0,Math.min(B.x1,car.x));car.z=Math.max(-B.z,Math.min(B.z,car.z));}
+ const cgh=HGT(car.x,car.z);
+ P.pos.set(car.x,0.92+cgh+(car.y||0),car.z);P.yaw=car.yaw;P.vel.set(Math.sin(car.yaw)*car.sp,0,Math.cos(car.yaw)*car.sp);P.grounded=true;
+ carG.position.set(car.x,cgh+(car.y||0),car.z);carG.rotation.order='YXZ';carG.rotation.y=car.yaw;
+ {let tp=0;if(car.x>3000){const sy=Math.sin(car.yaw),cy_=Math.cos(car.yaw);tp=Math.atan2(HGT(car.x+sy*2.4,car.z+cy_*2.4)-HGT(car.x-sy*2.4,car.z-cy_*2.4),4.8)*Math.max(0,1-(car.y||0)/3);}
+  W2.tp+=(tp-W2.tp)*0.25;carG.rotation.x=(car.gtr?(car.pt||0):0)-W2.tp;}
 }
 // GT-R jede ve 400+ km/h → fyziku dělíme na malé kroky, ať neprojede zdí
 function carPhysics(dt){const n=(car.gtr||car.bmw||car.gle||car.sc)?Math.max(1,Math.ceil(dt/0.008)):1;for(let i=0;i<n;i++)carPhysics1(dt/n);}
@@ -2236,7 +2522,7 @@ function spawnGW(){
 }
 // 1 náhodný G-Wagon na mapě: nahradí náhodně vybrané zaparkované auto (náhodná barva)
 function spawnGWmap(){
- const ok=VEH.filter(v=>v.mode==='parked'&&!v.own&&!v.cop&&!v.gtr&&!v.heli&&!v.bmw&&!v.gw&&!v.gle);
+ const ok=VEH.filter(v=>v.mode==='parked'&&!v.own&&!v.cop&&!v.gtr&&!v.bmw&&!v.gw&&!v.gle);
  const near=ok.filter(v=>Math.abs(v.x)<450&&Math.abs(v.z)<330),pool=near.length?near:ok;
  if(!pool.length)return null;
  const s0=pool[Math.floor(Math.random()*pool.length)];
@@ -2340,7 +2626,7 @@ function makeSC(ci){
 // náhodně vybrané zaparkované auto na mapě se nahradí S-Classem (náhodná barva), n kusů
 function spawnSCmap(n){
  for(let k=0;k<n;k++){
-  const ok=VEH.filter(v=>v.mode==='parked'&&!v.own&&!v.cop&&!v.gtr&&!v.heli&&!v.bmw&&!v.gw&&!v.gle&&!v.sc);
+  const ok=VEH.filter(v=>v.mode==='parked'&&!v.own&&!v.cop&&!v.gtr&&!v.bmw&&!v.gw&&!v.gle&&!v.sc);
   const near=ok.filter(v=>Math.abs(v.x)<450&&Math.abs(v.z)<330),pool=near.length?near:ok;
   if(!pool.length)return;
   const s0=pool[Math.floor(Math.random()*pool.length)];
@@ -2361,7 +2647,6 @@ function renderSpawn(){
  '<div style="margin:6px 0 4px;font-size:14px"><b>Barva GLE</b></div><div class="row">'+dots(GLECOL,GLE.c,'lc')+'</div>';
  if(isCreator)h+='<button class="mc" id="spgtr" style="margin-top:10px"><b>Nissan GT-R se spoilerem 👑</b><small>Supersport · 10 000 HP · 400+ km/h · fialové neony · vzlet na T · jen pro Matýska · barva: '+GTCOL[GTR.c][0]+'</small></button>'+
  '<div style="margin:6px 0 4px;font-size:14px"><b>Barva GT-R</b></div><div class="row">'+dots(GTCOL,GTR.c,'gc')+'</div>';
- h+='<button class="mc" id="sphe" style="margin-top:10px"><b>Vrtulník 🚁</b><small>Letí kamkoliv · 300 HP · zdarma · W/S rychlost · A/D zatáčení · LANO = nahoru · MÍŘIT = dolů</small></button>';
  h+='<p style="font-size:13px;color:#ffd166">'+gmsg+'</p><div class="row"><button id="bcl">Zavřít</button></div>';
  panel.innerHTML=h;
  $('spm4').onclick=()=>{gmsg='';if(spawnM4()){panel.hidden=true;paused=false;}else{gmsg='Nejdřív vystup z BMW.';renderPanel();}};
@@ -2376,7 +2661,6 @@ function renderSpawn(){
   $('spgtr').onclick=()=>{gmsg='';if(spawnGTR()){panel.hidden=true;paused=false;}else{gmsg='Nejdřív vystup z GT-R.';renderPanel();}};
   panel.querySelectorAll('[data-gc]').forEach(b=>b.onclick=()=>{GTR.c=+b.dataset.gc;if(GTR.v)GTR.v.g.userData.paint.color.setHex(GTCOL[GTR.c][1]);gmsg='';renderPanel();});
  }
- $('sphe').onclick=()=>{gmsg='';if(spawnHeli()){panel.hidden=true;paused=false;}else{gmsg='Nejdřív vystup z vrtulníku.';renderPanel();}};
  $('bcl').onclick=()=>{panel.hidden=true;paused=false;};
 }
 $('bspawn').addEventListener('pointerdown',e=>{e.preventDefault();togglePanel('s');});
@@ -2545,15 +2829,19 @@ try{const s=JSON.parse(localStorage.getItem('rr3d_houses')||'null');if(s&&Array.
 function saveH(){try{localStorage.setItem('rr3d_houses',JSON.stringify({o:ownedH,h:homeId}));}catch(_){}}
 HOUSES.forEach(x=>x.setOwned(ownedH.includes(x.id)));
 function homeSpawn(){const x=HOUSES.find(q=>q.id===homeId);return x?x.spawn:START;}
-function teleportTo(v){if(RIDE)rideLeave();if(drv)exitCar(true);P.pos.set(v.x,0.92,v.z);P.vel.set(0,0,0);P.yaw=0;P.camYaw=0;P.rope=null;P.grounded=true;}
+function teleportTo(v){if(RIDE)rideLeave();if(drv)exitCar(true);P.pos.set(v.x,(v.y>2?v.y:HGT(v.x,v.z)+0.92),v.z);P.vel.set(0,0,0);P.yaw=0;P.camYaw=0;P.rope=null;P.grounded=true;camPos.set(P.pos.x,P.pos.y+6,P.pos.z-12);look.copy(P.pos);}
 const MAPP=document.createElement('div');MAPP.id='mapp';MAPP.hidden=true;$('view').appendChild(MAPP);
 function mapPois(){
+ if(P.pos.x>3000){const U=(u,v)=>W2U(u,v),pk=WORLD2.peak,sp=W2.roads[0].pts[0],P2=(icon,name,x,z,desc)=>({k:'w2',icon,name,x,z,desc});
+  return [P2('🌍','Brána do města',WORLD2.GP.x,WORLD2.GP.z,'Portál zpátky do města (vstup do kruhu).'),P2('🏔','Vrchol Lanové hory',pk.x+6,pk.z+6,'Silnice vede až nahoru – '+W2M.H+' m. Jeď autem nebo se vyšvihni lanem.'),
+   P2('🛣','Začátek horské silnice',sp[0],sp[1],'Serpentina se stálým stoupáním vede 3,5 otáčky až na vrchol.'),P2('🏘','Vesnice',U(.60,.37)[0],U(.60,.37)[1],'Domky u hlavní cesty.'),
+   P2('🏜','Poušť',U(.20,.20)[0],U(.20,.20)[1],'Písek, mesy a oranžové skály.'),P2('❄','Ledovec',U(.80,.12)[0],U(.80,.12)[1],'Sníh, led a zamrzlá jezírka.'),
+   P2('🏖','Pláž a moře',U(.85,.51)[0],U(.85,.51)[1],'Teal moře na východě.'),P2('🌲','Hluboký les',U(.60,.85)[0],U(.60,.85)[1],'Tmavý jehličnatý les.'),P2('🪨','Kaňon',U(.12,.82)[0],U(.12,.82)[1],'Skalnatý kaňon s řekou.')];}
  const a=[
   {k:'bank',icon:'🏦',name:'Banka',x:60,z:0},
   {k:'shop',icon:'🔧',name:'Tuning garáž',x:SHOP.x,z:SHOP.z},
   {k:'pizza',icon:'🍕',name:'Pizzerie',x:-60,z:-24},
   {k:'start',icon:'🏁',name:'Start',x:0,z:-36},
-  {k:'fish',icon:'🎣',name:'Rybářské molo',x:300,z:452},
   {k:'car',icon:'🚗',name:'Tvoje auto',x:home.x,z:home.z}
  ];
  HOUSES.forEach(x=>a.push({k:'house',house:x,icon:ownedH.includes(x.id)?'🏡':'🏠',name:x.name,x:x.x,z:x.z}));
@@ -2571,9 +2859,10 @@ function buyHouse(x){
  mapMsg='Gratulace! Koupil jsi dům „'+x.name+'“. Nastaven jako tvůj respawn.';
 }
 function renderMap(){
- const W=920,H=667,X=x=>(x-MB.x0)/(MB.x1-MB.x0),Y=z=>(z+MB.z)/(2*MB.z);
- MAPP.innerHTML='<div class="hh"><b>Mapa</b><span style="color:#7dff9b">$ '+fmtM(money)+'</span><button id="mpx">✕</button></div><div id="mpwrap"><canvas id="mpc" width="'+W+'" height="'+H+'"></canvas></div><div id="mpinfo"></div><div id="mpleg">🏦 banka · 🏠 domy na prodej ($'+fmtM(HOUSE_PRICE)+') · 🔧 tuning garáž · 🍕 pizzerie · 🎣 rybářské molo · 🚗 tvoje auto · ▲ ty</div>';
+ const R2=P.pos.x>3000,W=920,H=667,BX0=R2?W2.x0:MB.x0,BX1=R2?W2.x1:MB.x1,BZ=R2?W2.D/2:MB.z,X=x=>(x-BX0)/(BX1-BX0),Y=z=>(z+BZ)/(2*BZ);
+ MAPP.innerHTML='<div class="hh"><b>Mapa</b><span style="color:#7dff9b">$ '+fmtM(money)+'</span><button id="mpx">✕</button></div><div id="mpwrap"><canvas id="mpc" width="'+W+'" height="'+H+'"></canvas></div><div id="mpinfo"></div><div id="mpleg">'+(R2?'🏔 hora · 🏘 vesnice · 🌍 brána · klepni na ikonu = teleport · ▲ ty':'🏦 banka · 🏠 domy na prodej ($'+fmtM(HOUSE_PRICE)+') · 🔧 tuning garáž · 🍕 pizzerie · 🚗 tvoje auto · ▲ ty')+'</div>';
  const g=$('mpc').getContext('2d');
+ if(R2){g.drawImage(W2.mapCv,0,0,W,H);}else{
  g.fillStyle='#35553a';g.fillRect(0,0,W,H);
  MB.zones.forEach(q=>{g.fillStyle=q[4];g.fillRect(X(q[0])*W,Y(q[2])*H,(X(q[1])-X(q[0]))*W,(Y(q[3])-Y(q[2]))*H);});
  g.fillStyle='#3b8fc4';g.beginPath();g.arc(X(300)*W,Y(640)*H,170/(MB.x1-MB.x0)*W,0,7);g.fill();
@@ -2582,7 +2871,7 @@ function renderMap(){
  [-36,36].forEach(z=>g.fillRect(0,Y(z)*H-1,W,2));
  ROADS.forEach(z=>g.fillRect(X(-450)*W,Y(z)*H-1,(X(450)-X(-450))*W,2));
  [-300,-172,172,300].forEach(x=>g.fillRect(X(x)*W-1,Y(-250)*H,2,(Y(250)-Y(-250))*H));
- g.fillRect(X(-450)*W,Y(330)*H-1,(X(900)-X(-450))*W,2);
+ g.fillRect(X(-450)*W,Y(330)*H-1,(X(900)-X(-450))*W,2);}
  const wrap=$('mpwrap'),pois=mapPois();
  pois.forEach(q=>{const b=document.createElement('button');b.className='mpi'+(mapSel&&mapSel.k===q.k&&mapSel.name===q.name?' sel':'');b.textContent=q.icon;b.style.left=(X(q.x)*100)+'%';b.style.top=(Y(q.z)*100)+'%';b.title=q.name;
   b.onclick=()=>{mapSel=q;mapMsg='';renderMap();};wrap.appendChild(b);});
@@ -2602,14 +2891,15 @@ function renderMap(){
    else{html+='<p>Dům na prodej: $'+fmtM(HOUSE_PRICE)+'. Po koupi se tu budeš respawnovat a můžeš se sem teleportovat.</p>';
     btns.push(['Koupit za $'+fmtM(HOUSE_PRICE),()=>{buyHouse(x);renderMap();}]);}
   }
+  else if(q.k==='w2'){html+='<p>'+q.desc+'</p>';btns.push(['Teleport sem',()=>{closeMap();teleportTo(q);toast(q.name,1500);}]);}
   else if(q.k==='car')html+='<p>Tvoje červené auto.</p>';
   else if(q.k==='shop')html+='<p>Tuning aut: pancíř, motor, spoilery, barva.</p>';
   else if(q.k==='pizza')html+='<p>Pizzerie – cíl mise Rychlá pizza.</p>';
-  else if(q.k==='fish'){html+='<p>Molo u jezera. Vezmi prut z inventáře (🎣), hoď (E / tlačítko dole) a zatáhni, až splávek zmizí. Ryby se prodávají samy za peníze, lepší pruty koupíš v telefonu (📱 → 🎣 Rybaření).</p>';btns.push(['Teleport na molo',()=>{closeMap();teleportTo({x:300,z:444});toast('Na molu 🎣 – vezmi prut z inventáře',2400);}]);}
   else html+='<p>Výchozí bod hry.</p>';
   html+='<p style="font-size:12px;opacity:.7">Vzdálenost: '+dist+' m</p>';
   btns.push(['Navigovat',()=>{WP.p=new V3(q.x,1,q.z);closeMap();toast('Navigace: '+q.name,1800);}]);
  }
+ btns.push([R2?'🏙 Zpět do města':'🌍 Cestovat na Mapu světa',()=>{closeMap();if(R2){teleportTo(homeSpawn());toast('🏙 Zpátky ve městě',1600);}else{teleportTo(WORLD2.S2);toast('🌍 Mapa světa – hora se silnicí až nahoru je uprostřed 🏔',3400);}}]);
  if(WP.p)btns.push(['Zrušit navigaci',()=>{WP.p=null;mapMsg='Navigace zrušena.';renderMap();}]);
  if(mapMsg)html+='<p class="warn">'+mapMsg+'</p>';
  info.innerHTML=html+'<div class="row" id="mpb"></div>';
@@ -2725,7 +3015,6 @@ function loop(now){
  todUpdate(dt);HK.cull(camera.position.x,camera.position.z);grassUpdate(dt);sun.target.position.copy(P.pos);sun.position.copy(P.pos).add(SUNOFF);
  (SKYOBJ||(SKYOBJ=scene.getObjectByName('sky'))).position.copy(camera.position);
  fxUpdate(dt);
- if(window.__fishU)window.__fishU(dt);
  renderer.render(scene,camera);
 }
 
@@ -2835,13 +3124,13 @@ applySet();
   owned.filter(id=>id!=='fist'&&!inv.includes(id)).forEach(id=>{const i=inv.indexOf(null);if(i>=0)inv[i]=id;});
  }
  function render(){
-  const g=inv.join(',')+'|'+equipped+'|'+mv+'|'+(window.__fishHeld?1:0);if(g===sig)return;sig=g;
+  const g=inv.join(',')+'|'+equipped+'|'+mv;if(g===sig)return;sig=g;
   try{localStorage.setItem(KEY,JSON.stringify(inv));}catch(_){}
-  box.innerHTML=inv.map((id,i)=>'<button data-i="'+i+'" class="'+(id?'':'e ')+((id&&id===equipped)||(id==='rod'&&window.__fishHeld)?'on ':'')+(i===mv?'mv':'')+'" aria-label="'+(id?nm(id):'Prázdný slot')+'"><i>'+(i+1)+'</i>'+(id?(IC[id]||'📦'):'')+'</button>').join('');
+  box.innerHTML=inv.map((id,i)=>'<button data-i="'+i+'" class="'+(id?'':'e ')+(id&&id===equipped?'on ':'')+(i===mv?'mv':'')+'" aria-label="'+(id?nm(id):'Prázdný slot')+'"><i>'+(i+1)+'</i>'+(id?(IC[id]||'📦'):'')+'</button>').join('');
  }
  function use(i){
   const id=inv[i];if(!id)return;
-  if(!isW(id)){if(window.invUse&&window.invUse(id))return;toast(String(id),900);return;}
+  if(!isW(id)){toast(String(id),900);return;}
   equipped=equipped===id?'fist':id;save();equip();toast(equipped==='fist'?'Pěsti':nm(id),900);render();
  }
  box.addEventListener('pointerdown',e=>{const b=e.target.closest('button');if(!b)return;e.stopPropagation();lp=false;clearTimeout(tm);const i=+b.dataset.i;
@@ -2857,259 +3146,6 @@ applySet();
  // věci do inventáře: window.invAdd('klic','🔑')
  window.invAdd=(id,icon)=>{if(icon)IC[id]=icon;if(inv.includes(id))return true;const i=inv.indexOf(null);if(i<0)return false;inv[i]=id;sig='';render();return true;};
  sync();render();setInterval(()=>{sync();render();},300);
-})();
-
-// ===== Rybaření 🎣: molo u jezera, prut v inventáři, záběr + zdolávání, výkup ryb za peníze, deník v telefonu =====
-(function(){
- const LAKE={x:300,z:640,r:170},DX=LAKE.x,DZ0=450,DZ1=498,KEY='rr3d_fish';
- const RODS=[
-  {n:'Bambusový prut',price:0,speed:1,luck:1,reel:1,win:1.2,col:0xc9a25e},
-  {n:'Karbonový prut',price:1500,speed:1.4,luck:1.6,reel:1.3,win:1.5,col:0x2b2f36},
-  {n:'Zlatý prut',price:12000,speed:1.9,luck:2.6,reel:1.7,win:1.9,col:0xffd166}];
- const FISH=[
-  {id:'plot',n:'Plotice',e:'🐟',w:34,a:0.2,b:0.9,p:38,h:0.15,c:0xb8c4cc},
-  {id:'okoun',n:'Okoun',e:'🐠',w:24,a:0.3,b:1.4,p:52,h:0.25,c:0x6b8f3a},
-  {id:'kapr',n:'Kapr',e:'🐟',w:16,a:1.5,b:9,p:24,h:0.4,c:0xb88a3d},
-  {id:'stika',n:'Štika',e:'🐟',w:9,a:1.5,b:12,p:44,h:0.55,c:0x4f7a3c},
-  {id:'sumec',n:'Sumec',e:'🐟',w:6,a:3,b:25,p:30,h:0.65,c:0x4a4a42,rare:1},
-  {id:'jeseter',n:'Jeseter',e:'🦈',w:2.5,a:12,b:80,p:50,h:0.85,c:0x7d8794,rare:1,big:1},
-  {id:'zlaty',n:'Zlatý kapr',e:'👑',w:0.5,a:18,b:35,p:220,h:0.95,c:0xffc933,rare:1,big:1,legend:1},
-  {id:'truhla',n:'Truhla s pokladem',e:'💰',w:0.7,flat:[400,1500],h:0.35,c:0xd4a72c,rare:1,junk2:1},
-  {id:'bota',n:'Stará bota',e:'🥾',w:5,flat:[1,3],h:0.05,c:0x5a4630,junk:1},
-  {id:'plech',n:'Plechovka',e:'🥫',w:4,flat:[1,2],h:0.05,c:0xb0b4ba,junk:1}];
- let S={rod:0,n:0,earned:0,sp:{}};
- try{const v=JSON.parse(localStorage.getItem(KEY)||'null');if(v&&typeof v==='object'){S.rod=Math.max(0,Math.min(RODS.length-1,v.rod|0));S.n=v.n|0;S.earned=v.earned|0;if(v.sp&&typeof v.sp==='object')S.sp=v.sp;}}catch(_){}
- const sv=()=>{try{localStorage.setItem(KEY,JSON.stringify(S));}catch(_){}};
- const fmt=n=>String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,' '),kgs=k=>String(k).replace('.',',');
- const M=(c,o)=>new THREE.MeshLambertMaterial(Object.assign({color:c},o||{}));
-
- // ---------- Svět: molo, bouda, cedule ----------
- (function(){
-  const len=DZ1-DZ0,wood=M(0x7a5a38),dark=M(0x4a3420),g=new THREE.Group();scene.add(g);
-  const plank=mkTex(64,64,(c,w,h)=>{c.fillStyle='#8a6a44';c.fillRect(0,0,w,h);for(let i=0;i<8;i++){c.fillStyle=i%2?'#7d5e3b':'#94744c';c.fillRect(0,i*8,w,7);}c.fillStyle='rgba(0,0,0,.25)';for(let i=0;i<8;i++)c.fillRect(0,i*8+7,w,1);},1,len/4);
-  const deck=new THREE.Mesh(new THREE.BoxGeometry(3.6,0.16,len),[wood,wood,new THREE.MeshLambertMaterial({map:plank}),wood,wood,wood]);
-  deck.position.set(DX,0.06,(DZ0+DZ1)/2);deck.receiveShadow=true;g.add(deck);
-  const end=new THREE.Mesh(new THREE.BoxGeometry(8,0.16,6),new THREE.MeshLambertMaterial({map:plank}));end.position.set(DX,0.06,DZ1+2);end.receiveShadow=true;g.add(end);
-  const post=(x,z,h)=>{const p=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.15,h,7),dark);p.position.set(x,h/2-0.4,z);p.castShadow=true;g.add(p);return p;};
-  for(let z=DZ0+2;z<=DZ1+4;z+=6)[-1.7,1.7].forEach(x=>post(DX+x,z,1.5));
-  [-1.7,1.7].forEach(x=>{const r=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.07,len),dark);r.position.set(DX+x,1.0,(DZ0+DZ1)/2);g.add(r);});
-  [-3.8,3.8].forEach(x=>{post(DX+x,DZ1+4.6,2.4);const l=new THREE.Mesh(new THREE.SphereGeometry(0.22,8,6),new THREE.MeshBasicMaterial({color:0xffe9a8}));l.position.set(DX+x,2.0,DZ1+4.6);g.add(l);});
-  const bench=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.12,0.6),wood);bench.position.set(DX+1,0.6,DZ1+4.7);g.add(bench);
-  [-0.9,0.9].forEach(o=>{const l=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.5,0.5),dark);l.position.set(DX+1+o,0.35,DZ1+4.7);g.add(l);});
-  // bouda
-  const hx=DX-9,hz=DZ0+4;
-  const hut=new THREE.Mesh(new THREE.BoxGeometry(6,3.2,5),M(0xb08a5a));hut.position.set(hx,1.6,hz);hut.castShadow=hut.receiveShadow=true;g.add(hut);
-  const roof=new THREE.Mesh(new THREE.ConeGeometry(4.9,1.9,4),M(0x5b3a2a));roof.rotation.y=Math.PI/4;roof.position.set(hx,4.1,hz);roof.castShadow=true;g.add(roof);
-  const door=new THREE.Mesh(new THREE.PlaneGeometry(1.4,2.2),new THREE.MeshBasicMaterial({color:0x3a2616}));door.position.set(hx,1.1,hz-2.51);door.rotation.y=Math.PI;g.add(door);
-  addBox(hx,0,hz,6,3.2,5);
-  // sítě a bedny u boudy
-  [[hx+4.2,hz-1],[hx+4.6,hz+0.6]].forEach(p=>{const b=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.7,0.9),wood);b.position.set(p[0],0.35,p[1]);g.add(b);});
-  // cedule u vstupu na molo
-  const cv=document.createElement('canvas');cv.width=512;cv.height=160;const c2=cv.getContext('2d');
-  c2.fillStyle='#10324f';c2.fillRect(0,0,512,160);c2.strokeStyle='#35e0ff';c2.lineWidth=6;c2.strokeRect(6,6,500,148);
-  c2.fillStyle='#fff';c2.font='bold 50px sans-serif';c2.textAlign='center';c2.textBaseline='middle';c2.fillText('🎣 RYBÁŘSKÉ MOLO',256,58);
-  c2.font='bold 26px sans-serif';c2.fillStyle='#ffd166';c2.fillText('prut v inventáři · hod: E',256,116);
-  const sg=new THREE.Mesh(new THREE.PlaneGeometry(6,1.9),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv)}));sg.position.set(DX,3.3,DZ0-0.6);sg.rotation.y=Math.PI;g.add(sg);
-  [-3,3].forEach(x=>post(DX+x,DZ0-0.5,3.4));
- })();
-
- // ---------- Prut v ruce ----------
- const rod=new THREE.Group(),blankM=new THREE.MeshStandardMaterial({color:RODS[S.rod].col,roughness:0.5,metalness:0.2});
- {const bl=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.02,0.95,6),blankM);bl.rotation.x=Math.PI/2;bl.position.z=0.5;rod.add(bl);
-  const hd=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.3,8),new THREE.MeshStandardMaterial({color:0x14161a}));hd.rotation.x=Math.PI/2;hd.position.z=0.0;rod.add(hd);
-  const rl=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.035,10),new THREE.MeshStandardMaterial({color:0xdfe5ea,metalness:0.9,roughness:0.3}));rl.rotation.z=Math.PI/2;rl.position.set(0.05,-0.035,0.1);rod.add(rl);}
- const tip=new THREE.Object3D();tip.position.set(0,0,0.98);rod.add(tip);
- rod.traverse(o=>{if(o.isMesh)o.castShadow=true;});
-
- // ---------- Splávek, vlasec, kruhy na vodě, chycená ryba ----------
- const bob=new THREE.Group(),bobS=1.5;
- {const t=new THREE.Mesh(new THREE.SphereGeometry(0.16,12,6,0,Math.PI*2,0,Math.PI/2),new THREE.MeshBasicMaterial({color:0xe0332f}));
-  const b=new THREE.Mesh(new THREE.SphereGeometry(0.16,12,6,0,Math.PI*2,Math.PI/2,Math.PI/2),new THREE.MeshBasicMaterial({color:0xffffff}));
-  const st=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.3,5),new THREE.MeshBasicMaterial({color:0xffffff}));st.position.y=0.28;
-  const sp=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,0.1,5),new THREE.MeshBasicMaterial({color:0xe0332f}));sp.position.y=0.42;
-  bob.add(t,b,st,sp);bob.scale.setScalar(bobS);bob.visible=false;scene.add(bob);}
- const LN=14,lineG=new THREE.BufferGeometry();lineG.setAttribute('position',new THREE.BufferAttribute(new Float32Array(LN*3),3));
- const line=new THREE.Line(lineG,new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:0.85}));line.frustumCulled=false;line.visible=false;scene.add(line);
- const rings=[0,1].map(()=>{const m=new THREE.Mesh(new THREE.RingGeometry(0.42,0.5,28),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.visible=false;scene.add(m);return m;});
- const fishObj=new THREE.Group();fishObj.visible=false;scene.add(fishObj);
- function buildFish(f,kg){
-  while(fishObj.children.length)fishObj.remove(fishObj.children[0]);
-  const m=new THREE.MeshLambertMaterial({color:f.c});
-  if(f.junk||f.junk2){const o=new THREE.Mesh(f.id==='plech'?new THREE.CylinderGeometry(0.12,0.12,0.2,10):new THREE.BoxGeometry(0.3,0.25,0.5),m);fishObj.add(o);fishObj.scale.setScalar(1.4);return;}
-  const s=0.55+Math.min(1.6,Math.pow(kg,0.38)*0.5);
-  const body=new THREE.Mesh(new THREE.SphereGeometry(0.5,12,8),m);body.scale.set(0.3,0.26,0.85);fishObj.add(body);
-  const tail=new THREE.Mesh(new THREE.ConeGeometry(0.22,0.4,4),m);tail.rotation.x=-Math.PI/2;tail.position.z=-0.55;fishObj.add(tail);
-  const fin=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.3,4),m);fin.position.set(0,0.22,0);fishObj.add(fin);
-  const eye=new THREE.Mesh(new THREE.SphereGeometry(0.04,6,5),new THREE.MeshBasicMaterial({color:0x000000}));eye.position.set(0.12,0.06,0.36);fishObj.add(eye);const e2=eye.clone();e2.position.x=-0.12;fishObj.add(e2);
-  fishObj.scale.setScalar(s);
- }
-
- // ---------- UI ----------
- const st=document.createElement('style');st.textContent=`#fishhud{position:absolute;left:50%;transform:translateX(-50%);top:max(10px,env(safe-area-inset-top));z-index:6;width:min(280px,46vw);text-align:center;pointer-events:none;text-shadow:0 1px 3px #000}#fishhud[hidden]{display:none}
-#fhmsg{display:inline-block;font-size:14px;font-weight:600;background:#0b1426b3;border-radius:10px;padding:5px 10px}#fhmsg.bite{background:#d62839;animation:fhb .25s infinite alternate}@keyframes fhb{to{transform:scale(1.08)}}
-.fhb{position:relative;height:14px;margin-top:6px;background:#0b1426cc;border:1px solid #fff4;border-radius:8px;overflow:hidden}.fhb[hidden]{display:none}.fhb .z{position:absolute;top:0;bottom:0;background:#2ec4b6aa}.fhb .m{position:absolute;top:-1px;bottom:-1px;width:6px;margin-left:-3px;background:#fff;border-radius:3px;box-shadow:0 0 6px #fff}.fhb .f{position:absolute;left:0;top:0;bottom:0;background:#ffd166}
-#fishbtn{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom));z-index:6;min-width:150px;padding:14px 18px;border-radius:30px;border:2px solid #ffffffaa;background:#0b3a66dd;color:#fff;font-size:16px;font-weight:700;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none}#fishbtn[hidden]{display:none}#fishbtn.act{background:#d62839dd}`;
- document.head.appendChild(st);
- const hud=document.createElement('div');hud.id='fishhud';hud.hidden=true;
- hud.innerHTML='<div id="fhmsg"></div><div class="fhb" id="fhT" hidden><i class="z"></i><i class="m"></i></div><div class="fhb" id="fhP" hidden><i class="f"></i></div>';
- view.appendChild(hud);
- const btn=document.createElement('button');btn.id='fishbtn';btn.hidden=true;view.appendChild(btn);
- const fhmsg=$('fhmsg'),fhT=$('fhT'),fhP=$('fhP'),zone=fhT.querySelector('.z'),mark=fhT.querySelector('.m'),pfill=fhP.querySelector('.f');
-
- // ---------- Stav ----------
- const F={held:false,st:'idle',t:0,down:false,tx:0,tz:0,sx:0,sy:0,sz:0,fl:0.7,wait:0,win:0,f:null,kg:0,val:0,ten:0,bump:0,jt:0,prog:0.3,perp:0,fromx:0,fromy:0,fromz:0,ring:0};
- const tipV=new V3();
- const todMul=()=>{const h=TOD.h;return(h>=5&&h<9)||(h>=17.5&&h<21)?1.3:1;};
- const R=()=>RODS[S.rod];
- function applyRod(){blankM.color.set(R().col);}
- function setHeld(v){
-  if(v===F.held)return;F.held=v;window.__fishHeld=v;
-  if(v){equipped='fist';save();equip();wMesh.add(rod);applyRod();toast('🎣 Prut v ruce – hoď: E / tlačítko dole',2600);}
-  else{reset();if(rod.parent)rod.parent.remove(rod);}
- }
- function reset(msg){F.st='idle';F.f=null;bob.visible=false;line.visible=false;rings.forEach(r=>r.visible=false);fishObj.visible=false;if(msg)toast(msg,1800);}
- function splash(x,z,n){for(let k=0;k<n;k++){const a=Math.random()*6.283,s=1+Math.random()*2.2;fxEmit(x,0.15,z,Math.cos(a)*s,1.2+Math.random()*1.6,Math.sin(a)*s,0.6+Math.random()*0.3,0.9+Math.random()*0.6);}}
- function pick(){
-  const L=R().luck,tb=FISH.map(f=>({f,w:f.w*(f.rare?L:1)*(f.junk?1/L:1)}));
-  let r=Math.random()*tb.reduce((a,x)=>a+x.w,0);for(const x of tb){r-=x.w;if(r<=0)return x.f;}return tb[0].f;
- }
- function tryCast(){
-  const px=P.pos.x,pz=P.pos.z,Rd=Math.hypot(px-LAKE.x,pz-LAKE.z);
-  if(Rd>LAKE.r+60){toast('Jsi daleko od vody. Jezero je na jihu – v mapě 🗺 najdeš 🎣 Rybářské molo.',3200);return;}
-  const okp=(yw,d)=>Math.hypot(px+Math.sin(yw)*d-LAKE.x,pz+Math.cos(yw)*d-LAKE.z)<LAKE.r-6;
-  let yaw=P.yaw,d=0,found=false;
-  for(const yw of [P.yaw,Math.atan2(LAKE.x-px,LAKE.z-pz)]){for(let k=0;k<13&&!found;k++){const dd=11+k*3+Math.random()*2;if(okp(yw,dd)){d=dd;yaw=yw;found=true;}}if(found)break;}
-  if(!found){toast('Tam není voda – jdi blíž (třeba na molo) a zamiř na jezero 🌊',2600);return;}
-  P.yaw=yaw;hero.g.updateMatrixWorld(true);tip.getWorldPosition(tipV);
-  F.sx=tipV.x;F.sy=tipV.y;F.sz=tipV.z;F.tx=px+Math.sin(yaw)*d;F.tz=pz+Math.cos(yaw)*d;F.st='cast';F.t=0;F.fl=0.55+d*0.012;
-  bob.visible=true;line.visible=true;bob.position.set(F.sx,F.sy,F.sz);
- }
- function hook(){
-  const f=pick();F.f=f;F.kg=f.flat?0:Math.round((f.a+(f.b-f.a)*Math.pow(Math.random(),1.6))*20)/20;
-  F.val=f.flat?Math.round(f.flat[0]+Math.random()*(f.flat[1]-f.flat[0])):Math.max(1,Math.round(F.kg*f.p));
-  F.st='reel';F.t=0;F.ten=0.5;F.bump=0;F.jt=0.6;F.prog=0.3;F.fromx=F.tx;F.fromz=F.tz;splash(F.tx,F.tz,10);
-  toast('🎣 Zasekl jsi! Drž E / tlačítko a udrž ukazatel v zeleném.',2000);
- }
- function press(){
-  if(!F.held||paused)return;F.down=true;
-  if(F.st==='idle')tryCast();
-  else if(F.st==='wait'){reset('Stáhl jsi to příliš brzy 🎣');}
-  else if(F.st==='bite')hook();
- }
- const release=()=>{F.down=false;};
- function land(){
-  const f=F.f,kg=F.kg,val=F.val;F.st='land';F.t=0;buildFish(f,kg);fishObj.visible=true;F.fromx=bob.position.x;F.fromy=0.2;F.fromz=bob.position.z;line.visible=false;bob.visible=false;rings.forEach(r=>r.visible=false);splash(F.fromx,F.fromz,14);
- }
- function payoff(){
-  const f=F.f,kg=F.kg,val=F.val;fishObj.visible=false;
-  addMoney(val);S.earned+=val;if(!f.junk&&!f.junk2)S.n++;
-  const r=S.sp[f.id]||(S.sp[f.id]=[0,0]);r[0]++;if(kg>r[1])r[1]=kg;sv();
-  const w=f.flat?'':' '+kgs(kg)+' kg';
-  if(f.legend){toast('🏆 LEGENDA! '+f.n+w+' · +$'+fmt(val),4200);try{chatSend('🎣 Chytil jsem Zlatého kapra'+w+'!');}catch(_){}}
-  else if(f.rare)toast('✨ Vzácný úlovek: '+f.n+w+' · +$'+fmt(val),3400);
-  else if(f.junk)toast(f.e+' '+f.n+'… +$'+fmt(val),2000);
-  else toast(f.e+' '+f.n+w+' · +$'+fmt(val),2600);
-  F.f=null;F.st='idle';
- }
-
- // ---------- Aktualizace (každý snímek, po poseHero) ----------
- const bp=new V3(),tp=new V3();let tm=0,addTry=0;
- window.__fishU=function(dt){
-  tm+=dt;
-  if(!window.__fishGot){addTry-=dt;if(addTry<=0){addTry=1;if(window.invAdd&&window.invAdd('rod','🎣'))window.__fishGot=true;}}
-  if(F.held&&(drv||RIDE||equipped!=='fist'))setHeld(false);
-  const show=F.held&&!paused&&$('login').hidden;
-  hud.hidden=!show;btn.hidden=!show;
-  if(!F.held)return;
-  if(paused)return;
-  // póza: ruka s prutem
-  if(P.grounded&&!P.rope){hero.armL.rotation.set(-1.05-(F.st==='reel'?F.ten*0.25:0),0,0);wMesh.rotation.x=0.45;}
-  hero.g.updateMatrixWorld(true);tip.getWorldPosition(tp);
-  const px=P.pos.x,pz=P.pos.z;
-  if(F.st!=='idle'&&F.st!=='land'&&Math.hypot(px-F.tx,pz-F.tz)>60)reset('Vlasec se přetrhl – jsi moc daleko.');
-  // logika stavů
-  let msg='Prut připraven – hoď (E)',bobY=0.1,sag=0.5;
-  if(F.st==='cast'){
-   F.t+=dt;const u=Math.min(1,F.t/F.fl);bob.position.set(F.sx+(F.tx-F.sx)*u,F.sy*(1-u)+0.1*u+Math.sin(u*Math.PI)*5,F.sz+(F.tz-F.sz)*u);
-   msg='';sag=0.1;
-   if(u>=1){F.st='wait';F.t=0;F.wait=Math.max(2,(4+Math.random()*9)/(R().speed*todMul()));splash(F.tx,F.tz,6);F.ring=0;}
-  }else if(F.st==='wait'){
-   F.t+=dt;msg='Čekám na záběr… 🎣';bob.position.set(F.tx,0.1+Math.sin(tm*2.2)*0.03,F.tz);
-   if(F.t>=F.wait){F.st='bite';F.t=0;F.win=R().win;splash(F.tx,F.tz,8);try{navigator.vibrate&&navigator.vibrate([60,40,60]);}catch(_){}}
-  }else if(F.st==='bite'){
-   F.t+=dt;msg='‼ ZÁBĚR! Zatáhni!';bob.position.set(F.tx+(Math.random()-0.5)*0.12,0.1-0.22*Math.abs(Math.sin(F.t*16)),F.tz+(Math.random()-0.5)*0.12);
-   if(F.t>=F.win)reset('Ryba ti ujela… 🐟');
-  }else if(F.st==='reel'){
-   const f=F.f,rd=R();F.t+=dt;
-   F.jt-=dt;if(F.jt<=0){F.jt=0.5+Math.random()*(1.3-0.6*f.h);F.bump=Math.max(F.bump,(0.15+0.3*f.h)*(0.6+Math.random()*0.8));}
-   F.bump=Math.max(0,F.bump-dt*1.2);
-   F.ten=Math.max(0,Math.min(1,F.ten+(F.down?0.8:-0.7)*dt));
-   const E=Math.min(1.2,F.ten+F.bump),lo=0.35,hi=0.72+0.03*S.rod;
-   if(E>=1){reset('💥 Vlasec praskl!');}
-   else{
-    if(E>=lo&&E<=hi)F.prog+=dt*0.16*rd.reel/(0.6+f.h*1.2);else if(E>hi)F.prog+=dt*0.05;else F.prog-=dt*(0.06+0.12*f.h);
-    if(F.prog<=0)reset('Ryba se utrhla… 🐟');
-    else if(F.prog>=1)land();
-   }
-   if(F.st==='reel'){
-    msg='Drž E / tlačítko – navíjej';const u=F.prog*0.85,wob=Math.sin(tm*5)*(1.2+F.bump*5)*(1-F.prog);
-    const dx=px-F.fromx,dz=pz-F.fromz,L=Math.hypot(dx,dz)||1;
-    bob.position.set(F.fromx+dx*u+(-dz/L)*wob,0.1-F.bump*0.2,F.fromz+dz*u+(dx/L)*wob);sag=0.15;
-    zone.style.left=(lo*100)+'%';zone.style.width=((hi-lo)*100)+'%';mark.style.left=(Math.min(1,E)*100)+'%';pfill.style.width=Math.max(0,Math.min(1,F.prog))*100+'%';
-    if(Math.random()<dt*10)splash(bob.position.x,bob.position.z,1);
-   }
-  }else if(F.st==='land'){
-   F.t+=dt;const u=Math.min(1,F.t/0.85);msg='';
-   fishObj.position.set(F.fromx+(px-F.fromx)*u,F.fromy+(1.3-F.fromy)*u+Math.sin(u*Math.PI)*2.6,F.fromz+(pz-F.fromz)*u);fishObj.rotation.y+=dt*8;fishObj.rotation.z=Math.sin(tm*20)*0.3;
-   if(u>=1)payoff();
-  }
-  // vlasec
-  if(line.visible&&bob.visible){
-   const a=lineG.attributes.position.array;
-   for(let i=0;i<LN;i++){const q=i/(LN-1);a[i*3]=tp.x+(bob.position.x-tp.x)*q;a[i*3+1]=tp.y+(bob.position.y+0.45-tp.y)*q-Math.sin(q*Math.PI)*sag;a[i*3+2]=tp.z+(bob.position.z-tp.z)*q;}
-   lineG.attributes.position.needsUpdate=true;
-  }
-  // kruhy na vodě
-  const rv=(F.st==='wait'||F.st==='bite'||F.st==='reel');
-  rings.forEach((r,i)=>{r.visible=rv;if(!rv)return;const ph=((tm*0.7+i*0.5)%1),sc=1+ph*3.2;r.position.set(bob.position.x,0.085,bob.position.z);r.scale.setScalar(sc);r.material.opacity=0.55*(1-ph);});
-  // HUD
-  fhmsg.textContent=msg;fhmsg.className=F.st==='bite'?'bite':'';fhmsg.style.display=msg?'inline-block':'none';
-  fhT.hidden=fhP.hidden=F.st!=='reel';
-  const bt=F.st==='idle'?'🎣 Hodit (E)':F.st==='wait'?'Stáhnout (E)':F.st==='bite'?'‼ ZATÁHNI!':F.st==='reel'?'⬅ Drž – navíjej':'…';
-  if(btn.textContent!==bt)btn.textContent=bt;btn.classList.toggle('act',F.st==='bite'||F.st==='reel');
- };
-
- // ---------- Vstupy ----------
- btn.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();try{btn.setPointerCapture(e.pointerId);}catch(_){}press();});
- ['pointerup','pointercancel'].forEach(n=>btn.addEventListener(n,e=>{e.stopPropagation();release();}));
- btn.addEventListener('contextmenu',e=>e.preventDefault());
- window.addEventListener('keydown',e=>{if(e.code!=='KeyE'||e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;const t=e.target&&e.target.tagName;if(t==='INPUT'||t==='TEXTAREA'||t==='SELECT')return;if(!$('login').hidden||rebind||!F.held)return;e.preventDefault();press();});
- window.addEventListener('keyup',e=>{if(e.code==='KeyE')release();});
- window.addEventListener('blur',release);
- window.invUse=id=>{if(id!=='rod')return false;setHeld(!F.held);return true;};
-
- // ---------- Telefon: Rybaření (obchod + deník) ----------
- window.fishPhone=()=>{
-  const rods=RODS.map((r,i)=>{let b;
-   if(i<S.rod)b='<span style="opacity:.6">máš</span>';
-   else if(i===S.rod)b='<b style="color:#7dff9b">✓ používáš</b>';
-   else if(i===S.rod+1)b='<button data-fb="'+i+'" style="padding:4px 8px">Koupit $'+fmt(r.price)+'</button>';
-   else b='<span style="opacity:.5">🔒 $'+fmt(r.price)+'</span>';
-   return '<div class="phm" style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span>🎣 '+r.n+'<br><small style="opacity:.6">záběr ×'+r.speed+' · štěstí ×'+r.luck+'</small></span>'+b+'</div>';}).join('');
-  const dia=FISH.map(f=>{const r=S.sp[f.id];return '<div class="phm" style="display:flex;justify-content:space-between"><span>'+(r?f.e+' '+f.n:'❔ ???')+'</span><span style="opacity:.75">'+(r?r[0]+'×'+(r[1]?' · max '+kgs(r[1])+' kg':''):'')+'</span></div>';}).join('');
-  return '<h3 style="margin:4px 0">🎣 Rybaření</h3><div style="background:#12306a;border-radius:14px;padding:10px"><div style="opacity:.7;font-size:11px">Chyceno ryb</div><div style="font-size:22px;font-weight:700">'+S.n+' <span style="font-size:12px;font-weight:400;opacity:.8">· vyděláno $'+fmt(S.earned)+'</span></div></div>'
-   +'<button data-fb="hold" style="margin-top:8px">'+(F.held?'Odložit prut':'Vzít prut do ruky')+'</button>'
-   +'<div style="margin:10px 0 2px;font-weight:700">Pruty</div>'+rods
-   +'<div style="margin:10px 0 2px;font-weight:700">Deník úlovků</div>'+dia
-   +'<div class="phm" style="opacity:.7;font-size:11px;border:0">💡 Ryby berou líp za úsvitu a za soumraku. Při zdolávání drž E / tlačítko a udrž ukazatel v zeleném pásmu – moc silný tah vlasec přetrhne.</div>';
- };
- window.fishBuy=v=>{
-  if(v==='hold'){setHeld(!F.held);return;}
-  const i=+v;if(i!==S.rod+1||!RODS[i])return;
-  if(money<RODS[i].price){toast('Nemáš dost peněz – chybí $'+fmt(RODS[i].price-money),2200);return;}
-  addMoney(-RODS[i].price);S.rod=i;sv();applyRod();toast('🎣 Nový prut: '+RODS[i].n+'!',2600);
- };
- window.__fishPier={x:DX,z:DZ0-6};
 })();
 
 requestAnimationFrame(loop);
