@@ -1076,7 +1076,7 @@ var PHL=[];
  const clk=()=>{const h=Math.floor(TOD.h),m=Math.floor((TOD.h-h)*60);return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');};
  const WC=[['☀️','Slunečno'],['⛅','Polojasno'],['☁️','Zataženo'],['🌦','Přeháňky'],['⛈','Bouřky']];
  const wxAt=(h,off)=>{let x=Math.sin((Math.floor(Date.now()/1800000)+off)*12.9898)*43758.5453;x-=Math.floor(x);const ci=x<0.4?0:x<0.65?1:x<0.85?2:x<0.95?3:4;return{ci,t:Math.round(11+8*Math.sin((h-9)/24*Math.PI*2)-(ci>=3?3:ci===2?1.5:0))};};
- const apps=()=>{const a=[['m','🎯','Mise'],['g','🔫','Zbraně'],['c','🔧','Tuning'],['bank','🏦','Banka'],['chat','💬','Chat'],['wx','🌦','Počasí'],['map','🗺','Mapa'],['pl','👥','Hráči'],['st','⚙','Nastavení'],['fs','⛶','Celá obr.']];
+ const apps=()=>{const a=[['m','🎯','Mise'],['g','🔫','Zbraně'],['c','🔧','Tuning'],['bank','🏦','Banka'],['chat','💬','Chat'],['wx','🌦','Počasí'],['map','🗺','Mapa'],['pl','👥','Hráči'],['st','⚙','Nastavení'],['fs','⛶','Celá obr.'],['fish','🎣','Rybaření']];
   if(!$('bspawn').hidden)a.push(['sp','🚘','Auta']);if(!$('btod').hidden)a.push(['tod','🌅','Čas']);if(!$('bhk').hidden)a.push(['hk','🕹','Hack']);return a;};
  const EXT={m:()=>togglePanel('m'),g:()=>togglePanel('g'),c:()=>togglePanel('c'),map:()=>openMap(),st:()=>$('bst').click(),sp:()=>togglePanel('s'),tod:()=>togglePanel('d'),hk:()=>$('bhk').click(),adm:()=>$('bpl').click()};
  let app='home',pend=[],note='',iv=0;
@@ -1087,6 +1087,7 @@ var PHL=[];
    const opts=[...MP.players.entries()].map(([id,q])=>'<option value="'+id+'">'+E(q.name)+'</option>').join('');
    const tx=PHX.slice(-8).reverse().map(t=>'<div class="phm" style="display:flex;justify-content:space-between"><span>'+E(t[2])+'</span><b style="color:'+(t[1]>0?'#7dff9b':'#ff7a7a')+'">'+(t[1]>0?'+':'−')+'$'+fm(Math.abs(t[1]))+'</b></div>').join('')||'<div style="opacity:.6">Zatím žádné pohyby.</div>';
    return '<h3 style="margin:4px 0">🏦 Banka</h3><div style="background:#12306a;border-radius:14px;padding:12px"><div style="opacity:.7;font-size:11px">Zůstatek</div><div style="font-size:26px;font-weight:700">$ '+fm(money)+'</div></div><div style="margin:10px 0 4px;font-weight:700">Poslat peníze</div>'+(opts?'<select id="phto">'+opts+'</select><input id="pham" type="number" min="1" placeholder="Částka ($)"><button id="phsend" style="width:100%">Odeslat</button>':'<div style="opacity:.6">Nikdo jiný není online.</div>')+'<div style="color:#ffd166;min-height:16px;margin:4px 0">'+E(note)+'</div><div style="font-weight:700;margin-bottom:2px">Poslední pohyby</div>'+tx;}
+  if(app==='fish')return window.fishPhone?window.fishPhone():'';
   if(app==='chat')return '<h3 style="margin:4px 0">💬 Skupinový chat</h3><div id="phlog" style="flex:1;overflow:auto;min-height:0">'+logHtml()+'</div><div style="display:flex;gap:4px;margin-top:6px"><input id="phci" maxlength="100" placeholder="Napiš zprávu…" style="margin:0"><button id="phcs">➤</button></div>';
   if(app==='wx'){const w=wxAt(TOD.h,0),fc=[1,2,3,4,5,6].map(k=>{const h=(TOD.h+k*2)%24,x=wxAt(h,Math.floor(k/3));return '<div style="text-align:center;flex:1"><div style="opacity:.7;font-size:11px">'+String(Math.floor(h)).padStart(2,'0')+':00</div><div style="font-size:20px">'+WC[x.ci][0]+'</div><div>'+x.t+'°</div></div>';}).join('');
    return '<h3 style="margin:4px 0">🌦 Počasí</h3><div style="text-align:center"><div style="font-size:54px">'+WC[w.ci][0]+'</div><div style="font-size:34px;font-weight:300">'+w.t+' °C</div><div style="opacity:.75">'+WC[w.ci][1]+' · herní čas '+clk()+'</div></div><div style="display:flex;gap:2px;margin-top:14px;background:#12306a55;border-radius:12px;padding:8px">'+fc+'</div>';}
@@ -1096,6 +1097,7 @@ var PHL=[];
  function render(){
   ph.innerHTML='<div id="phb"><span id="phclk">'+clk()+'</span><span>'+(MP.connected?'📶 Online':'📵 Offline')+' 🔋</span></div><div id="phs">'+body()+'</div><div id="phn"><button id="phh">⌂ Domů</button><button id="phx">✕ Zavřít</button></div>';
   ph.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>go(b.dataset.a));
+  ph.querySelectorAll('[data-fb]').forEach(b=>b.onclick=()=>{window.fishBuy&&window.fishBuy(b.dataset.fb);render();});
   $('phh').onclick=()=>go('home');$('phx').onclick=close;
   const s=$('phsend');if(s)s.onclick=send;
   const cs=$('phcs');if(cs){const ci=$('phci'),sd=()=>{const t=ci.value.trim();if(t){chatSend(t);ci.value='';}};cs.onclick=sd;ci.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();sd();}};const lg=$('phlog');lg.scrollTop=lg.scrollHeight;}
@@ -2551,6 +2553,7 @@ function mapPois(){
   {k:'shop',icon:'🔧',name:'Tuning garáž',x:SHOP.x,z:SHOP.z},
   {k:'pizza',icon:'🍕',name:'Pizzerie',x:-60,z:-24},
   {k:'start',icon:'🏁',name:'Start',x:0,z:-36},
+  {k:'fish',icon:'🎣',name:'Rybářské molo',x:300,z:452},
   {k:'car',icon:'🚗',name:'Tvoje auto',x:home.x,z:home.z}
  ];
  HOUSES.forEach(x=>a.push({k:'house',house:x,icon:ownedH.includes(x.id)?'🏡':'🏠',name:x.name,x:x.x,z:x.z}));
@@ -2569,7 +2572,7 @@ function buyHouse(x){
 }
 function renderMap(){
  const W=920,H=667,X=x=>(x-MB.x0)/(MB.x1-MB.x0),Y=z=>(z+MB.z)/(2*MB.z);
- MAPP.innerHTML='<div class="hh"><b>Mapa</b><span style="color:#7dff9b">$ '+fmtM(money)+'</span><button id="mpx">✕</button></div><div id="mpwrap"><canvas id="mpc" width="'+W+'" height="'+H+'"></canvas></div><div id="mpinfo"></div><div id="mpleg">🏦 banka · 🏠 domy na prodej ($'+fmtM(HOUSE_PRICE)+') · 🔧 tuning garáž · 🍕 pizzerie · 🚗 tvoje auto · ▲ ty</div>';
+ MAPP.innerHTML='<div class="hh"><b>Mapa</b><span style="color:#7dff9b">$ '+fmtM(money)+'</span><button id="mpx">✕</button></div><div id="mpwrap"><canvas id="mpc" width="'+W+'" height="'+H+'"></canvas></div><div id="mpinfo"></div><div id="mpleg">🏦 banka · 🏠 domy na prodej ($'+fmtM(HOUSE_PRICE)+') · 🔧 tuning garáž · 🍕 pizzerie · 🎣 rybářské molo · 🚗 tvoje auto · ▲ ty</div>';
  const g=$('mpc').getContext('2d');
  g.fillStyle='#35553a';g.fillRect(0,0,W,H);
  MB.zones.forEach(q=>{g.fillStyle=q[4];g.fillRect(X(q[0])*W,Y(q[2])*H,(X(q[1])-X(q[0]))*W,(Y(q[3])-Y(q[2]))*H);});
@@ -2602,6 +2605,7 @@ function renderMap(){
   else if(q.k==='car')html+='<p>Tvoje červené auto.</p>';
   else if(q.k==='shop')html+='<p>Tuning aut: pancíř, motor, spoilery, barva.</p>';
   else if(q.k==='pizza')html+='<p>Pizzerie – cíl mise Rychlá pizza.</p>';
+  else if(q.k==='fish'){html+='<p>Molo u jezera. Vezmi prut z inventáře (🎣), hoď (E / tlačítko dole) a zatáhni, až splávek zmizí. Ryby se prodávají samy za peníze, lepší pruty koupíš v telefonu (📱 → 🎣 Rybaření).</p>';btns.push(['Teleport na molo',()=>{closeMap();teleportTo({x:300,z:444});toast('Na molu 🎣 – vezmi prut z inventáře',2400);}]);}
   else html+='<p>Výchozí bod hry.</p>';
   html+='<p style="font-size:12px;opacity:.7">Vzdálenost: '+dist+' m</p>';
   btns.push(['Navigovat',()=>{WP.p=new V3(q.x,1,q.z);closeMap();toast('Navigace: '+q.name,1800);}]);
@@ -2721,6 +2725,7 @@ function loop(now){
  todUpdate(dt);HK.cull(camera.position.x,camera.position.z);grassUpdate(dt);sun.target.position.copy(P.pos);sun.position.copy(P.pos).add(SUNOFF);
  (SKYOBJ||(SKYOBJ=scene.getObjectByName('sky'))).position.copy(camera.position);
  fxUpdate(dt);
+ if(window.__fishU)window.__fishU(dt);
  renderer.render(scene,camera);
 }
 
@@ -2830,13 +2835,13 @@ applySet();
   owned.filter(id=>id!=='fist'&&!inv.includes(id)).forEach(id=>{const i=inv.indexOf(null);if(i>=0)inv[i]=id;});
  }
  function render(){
-  const g=inv.join(',')+'|'+equipped+'|'+mv;if(g===sig)return;sig=g;
+  const g=inv.join(',')+'|'+equipped+'|'+mv+'|'+(window.__fishHeld?1:0);if(g===sig)return;sig=g;
   try{localStorage.setItem(KEY,JSON.stringify(inv));}catch(_){}
-  box.innerHTML=inv.map((id,i)=>'<button data-i="'+i+'" class="'+(id?'':'e ')+(id&&id===equipped?'on ':'')+(i===mv?'mv':'')+'" aria-label="'+(id?nm(id):'Prázdný slot')+'"><i>'+(i+1)+'</i>'+(id?(IC[id]||'📦'):'')+'</button>').join('');
+  box.innerHTML=inv.map((id,i)=>'<button data-i="'+i+'" class="'+(id?'':'e ')+((id&&id===equipped)||(id==='rod'&&window.__fishHeld)?'on ':'')+(i===mv?'mv':'')+'" aria-label="'+(id?nm(id):'Prázdný slot')+'"><i>'+(i+1)+'</i>'+(id?(IC[id]||'📦'):'')+'</button>').join('');
  }
  function use(i){
   const id=inv[i];if(!id)return;
-  if(!isW(id)){toast(String(id),900);return;}
+  if(!isW(id)){if(window.invUse&&window.invUse(id))return;toast(String(id),900);return;}
   equipped=equipped===id?'fist':id;save();equip();toast(equipped==='fist'?'Pěsti':nm(id),900);render();
  }
  box.addEventListener('pointerdown',e=>{const b=e.target.closest('button');if(!b)return;e.stopPropagation();lp=false;clearTimeout(tm);const i=+b.dataset.i;
@@ -2852,6 +2857,259 @@ applySet();
  // věci do inventáře: window.invAdd('klic','🔑')
  window.invAdd=(id,icon)=>{if(icon)IC[id]=icon;if(inv.includes(id))return true;const i=inv.indexOf(null);if(i<0)return false;inv[i]=id;sig='';render();return true;};
  sync();render();setInterval(()=>{sync();render();},300);
+})();
+
+// ===== Rybaření 🎣: molo u jezera, prut v inventáři, záběr + zdolávání, výkup ryb za peníze, deník v telefonu =====
+(function(){
+ const LAKE={x:300,z:640,r:170},DX=LAKE.x,DZ0=450,DZ1=498,KEY='rr3d_fish';
+ const RODS=[
+  {n:'Bambusový prut',price:0,speed:1,luck:1,reel:1,win:1.2,col:0xc9a25e},
+  {n:'Karbonový prut',price:1500,speed:1.4,luck:1.6,reel:1.3,win:1.5,col:0x2b2f36},
+  {n:'Zlatý prut',price:12000,speed:1.9,luck:2.6,reel:1.7,win:1.9,col:0xffd166}];
+ const FISH=[
+  {id:'plot',n:'Plotice',e:'🐟',w:34,a:0.2,b:0.9,p:38,h:0.15,c:0xb8c4cc},
+  {id:'okoun',n:'Okoun',e:'🐠',w:24,a:0.3,b:1.4,p:52,h:0.25,c:0x6b8f3a},
+  {id:'kapr',n:'Kapr',e:'🐟',w:16,a:1.5,b:9,p:24,h:0.4,c:0xb88a3d},
+  {id:'stika',n:'Štika',e:'🐟',w:9,a:1.5,b:12,p:44,h:0.55,c:0x4f7a3c},
+  {id:'sumec',n:'Sumec',e:'🐟',w:6,a:3,b:25,p:30,h:0.65,c:0x4a4a42,rare:1},
+  {id:'jeseter',n:'Jeseter',e:'🦈',w:2.5,a:12,b:80,p:50,h:0.85,c:0x7d8794,rare:1,big:1},
+  {id:'zlaty',n:'Zlatý kapr',e:'👑',w:0.5,a:18,b:35,p:220,h:0.95,c:0xffc933,rare:1,big:1,legend:1},
+  {id:'truhla',n:'Truhla s pokladem',e:'💰',w:0.7,flat:[400,1500],h:0.35,c:0xd4a72c,rare:1,junk2:1},
+  {id:'bota',n:'Stará bota',e:'🥾',w:5,flat:[1,3],h:0.05,c:0x5a4630,junk:1},
+  {id:'plech',n:'Plechovka',e:'🥫',w:4,flat:[1,2],h:0.05,c:0xb0b4ba,junk:1}];
+ let S={rod:0,n:0,earned:0,sp:{}};
+ try{const v=JSON.parse(localStorage.getItem(KEY)||'null');if(v&&typeof v==='object'){S.rod=Math.max(0,Math.min(RODS.length-1,v.rod|0));S.n=v.n|0;S.earned=v.earned|0;if(v.sp&&typeof v.sp==='object')S.sp=v.sp;}}catch(_){}
+ const sv=()=>{try{localStorage.setItem(KEY,JSON.stringify(S));}catch(_){}};
+ const fmt=n=>String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,' '),kgs=k=>String(k).replace('.',',');
+ const M=(c,o)=>new THREE.MeshLambertMaterial(Object.assign({color:c},o||{}));
+
+ // ---------- Svět: molo, bouda, cedule ----------
+ (function(){
+  const len=DZ1-DZ0,wood=M(0x7a5a38),dark=M(0x4a3420),g=new THREE.Group();scene.add(g);
+  const plank=mkTex(64,64,(c,w,h)=>{c.fillStyle='#8a6a44';c.fillRect(0,0,w,h);for(let i=0;i<8;i++){c.fillStyle=i%2?'#7d5e3b':'#94744c';c.fillRect(0,i*8,w,7);}c.fillStyle='rgba(0,0,0,.25)';for(let i=0;i<8;i++)c.fillRect(0,i*8+7,w,1);},1,len/4);
+  const deck=new THREE.Mesh(new THREE.BoxGeometry(3.6,0.16,len),[wood,wood,new THREE.MeshLambertMaterial({map:plank}),wood,wood,wood]);
+  deck.position.set(DX,0.06,(DZ0+DZ1)/2);deck.receiveShadow=true;g.add(deck);
+  const end=new THREE.Mesh(new THREE.BoxGeometry(8,0.16,6),new THREE.MeshLambertMaterial({map:plank}));end.position.set(DX,0.06,DZ1+2);end.receiveShadow=true;g.add(end);
+  const post=(x,z,h)=>{const p=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.15,h,7),dark);p.position.set(x,h/2-0.4,z);p.castShadow=true;g.add(p);return p;};
+  for(let z=DZ0+2;z<=DZ1+4;z+=6)[-1.7,1.7].forEach(x=>post(DX+x,z,1.5));
+  [-1.7,1.7].forEach(x=>{const r=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.07,len),dark);r.position.set(DX+x,1.0,(DZ0+DZ1)/2);g.add(r);});
+  [-3.8,3.8].forEach(x=>{post(DX+x,DZ1+4.6,2.4);const l=new THREE.Mesh(new THREE.SphereGeometry(0.22,8,6),new THREE.MeshBasicMaterial({color:0xffe9a8}));l.position.set(DX+x,2.0,DZ1+4.6);g.add(l);});
+  const bench=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.12,0.6),wood);bench.position.set(DX+1,0.6,DZ1+4.7);g.add(bench);
+  [-0.9,0.9].forEach(o=>{const l=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.5,0.5),dark);l.position.set(DX+1+o,0.35,DZ1+4.7);g.add(l);});
+  // bouda
+  const hx=DX-9,hz=DZ0+4;
+  const hut=new THREE.Mesh(new THREE.BoxGeometry(6,3.2,5),M(0xb08a5a));hut.position.set(hx,1.6,hz);hut.castShadow=hut.receiveShadow=true;g.add(hut);
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(4.9,1.9,4),M(0x5b3a2a));roof.rotation.y=Math.PI/4;roof.position.set(hx,4.1,hz);roof.castShadow=true;g.add(roof);
+  const door=new THREE.Mesh(new THREE.PlaneGeometry(1.4,2.2),new THREE.MeshBasicMaterial({color:0x3a2616}));door.position.set(hx,1.1,hz-2.51);door.rotation.y=Math.PI;g.add(door);
+  addBox(hx,0,hz,6,3.2,5);
+  // sítě a bedny u boudy
+  [[hx+4.2,hz-1],[hx+4.6,hz+0.6]].forEach(p=>{const b=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.7,0.9),wood);b.position.set(p[0],0.35,p[1]);g.add(b);});
+  // cedule u vstupu na molo
+  const cv=document.createElement('canvas');cv.width=512;cv.height=160;const c2=cv.getContext('2d');
+  c2.fillStyle='#10324f';c2.fillRect(0,0,512,160);c2.strokeStyle='#35e0ff';c2.lineWidth=6;c2.strokeRect(6,6,500,148);
+  c2.fillStyle='#fff';c2.font='bold 50px sans-serif';c2.textAlign='center';c2.textBaseline='middle';c2.fillText('🎣 RYBÁŘSKÉ MOLO',256,58);
+  c2.font='bold 26px sans-serif';c2.fillStyle='#ffd166';c2.fillText('prut v inventáři · hod: E',256,116);
+  const sg=new THREE.Mesh(new THREE.PlaneGeometry(6,1.9),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv)}));sg.position.set(DX,3.3,DZ0-0.6);sg.rotation.y=Math.PI;g.add(sg);
+  [-3,3].forEach(x=>post(DX+x,DZ0-0.5,3.4));
+ })();
+
+ // ---------- Prut v ruce ----------
+ const rod=new THREE.Group(),blankM=new THREE.MeshStandardMaterial({color:RODS[S.rod].col,roughness:0.5,metalness:0.2});
+ {const bl=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.02,0.95,6),blankM);bl.rotation.x=Math.PI/2;bl.position.z=0.5;rod.add(bl);
+  const hd=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.3,8),new THREE.MeshStandardMaterial({color:0x14161a}));hd.rotation.x=Math.PI/2;hd.position.z=0.0;rod.add(hd);
+  const rl=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.035,10),new THREE.MeshStandardMaterial({color:0xdfe5ea,metalness:0.9,roughness:0.3}));rl.rotation.z=Math.PI/2;rl.position.set(0.05,-0.035,0.1);rod.add(rl);}
+ const tip=new THREE.Object3D();tip.position.set(0,0,0.98);rod.add(tip);
+ rod.traverse(o=>{if(o.isMesh)o.castShadow=true;});
+
+ // ---------- Splávek, vlasec, kruhy na vodě, chycená ryba ----------
+ const bob=new THREE.Group(),bobS=1.5;
+ {const t=new THREE.Mesh(new THREE.SphereGeometry(0.16,12,6,0,Math.PI*2,0,Math.PI/2),new THREE.MeshBasicMaterial({color:0xe0332f}));
+  const b=new THREE.Mesh(new THREE.SphereGeometry(0.16,12,6,0,Math.PI*2,Math.PI/2,Math.PI/2),new THREE.MeshBasicMaterial({color:0xffffff}));
+  const st=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.3,5),new THREE.MeshBasicMaterial({color:0xffffff}));st.position.y=0.28;
+  const sp=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,0.1,5),new THREE.MeshBasicMaterial({color:0xe0332f}));sp.position.y=0.42;
+  bob.add(t,b,st,sp);bob.scale.setScalar(bobS);bob.visible=false;scene.add(bob);}
+ const LN=14,lineG=new THREE.BufferGeometry();lineG.setAttribute('position',new THREE.BufferAttribute(new Float32Array(LN*3),3));
+ const line=new THREE.Line(lineG,new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:0.85}));line.frustumCulled=false;line.visible=false;scene.add(line);
+ const rings=[0,1].map(()=>{const m=new THREE.Mesh(new THREE.RingGeometry(0.42,0.5,28),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.visible=false;scene.add(m);return m;});
+ const fishObj=new THREE.Group();fishObj.visible=false;scene.add(fishObj);
+ function buildFish(f,kg){
+  while(fishObj.children.length)fishObj.remove(fishObj.children[0]);
+  const m=new THREE.MeshLambertMaterial({color:f.c});
+  if(f.junk||f.junk2){const o=new THREE.Mesh(f.id==='plech'?new THREE.CylinderGeometry(0.12,0.12,0.2,10):new THREE.BoxGeometry(0.3,0.25,0.5),m);fishObj.add(o);fishObj.scale.setScalar(1.4);return;}
+  const s=0.55+Math.min(1.6,Math.pow(kg,0.38)*0.5);
+  const body=new THREE.Mesh(new THREE.SphereGeometry(0.5,12,8),m);body.scale.set(0.3,0.26,0.85);fishObj.add(body);
+  const tail=new THREE.Mesh(new THREE.ConeGeometry(0.22,0.4,4),m);tail.rotation.x=-Math.PI/2;tail.position.z=-0.55;fishObj.add(tail);
+  const fin=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.3,4),m);fin.position.set(0,0.22,0);fishObj.add(fin);
+  const eye=new THREE.Mesh(new THREE.SphereGeometry(0.04,6,5),new THREE.MeshBasicMaterial({color:0x000000}));eye.position.set(0.12,0.06,0.36);fishObj.add(eye);const e2=eye.clone();e2.position.x=-0.12;fishObj.add(e2);
+  fishObj.scale.setScalar(s);
+ }
+
+ // ---------- UI ----------
+ const st=document.createElement('style');st.textContent=`#fishhud{position:absolute;left:50%;transform:translateX(-50%);top:max(10px,env(safe-area-inset-top));z-index:6;width:min(280px,46vw);text-align:center;pointer-events:none;text-shadow:0 1px 3px #000}#fishhud[hidden]{display:none}
+#fhmsg{display:inline-block;font-size:14px;font-weight:600;background:#0b1426b3;border-radius:10px;padding:5px 10px}#fhmsg.bite{background:#d62839;animation:fhb .25s infinite alternate}@keyframes fhb{to{transform:scale(1.08)}}
+.fhb{position:relative;height:14px;margin-top:6px;background:#0b1426cc;border:1px solid #fff4;border-radius:8px;overflow:hidden}.fhb[hidden]{display:none}.fhb .z{position:absolute;top:0;bottom:0;background:#2ec4b6aa}.fhb .m{position:absolute;top:-1px;bottom:-1px;width:6px;margin-left:-3px;background:#fff;border-radius:3px;box-shadow:0 0 6px #fff}.fhb .f{position:absolute;left:0;top:0;bottom:0;background:#ffd166}
+#fishbtn{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom));z-index:6;min-width:150px;padding:14px 18px;border-radius:30px;border:2px solid #ffffffaa;background:#0b3a66dd;color:#fff;font-size:16px;font-weight:700;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none}#fishbtn[hidden]{display:none}#fishbtn.act{background:#d62839dd}`;
+ document.head.appendChild(st);
+ const hud=document.createElement('div');hud.id='fishhud';hud.hidden=true;
+ hud.innerHTML='<div id="fhmsg"></div><div class="fhb" id="fhT" hidden><i class="z"></i><i class="m"></i></div><div class="fhb" id="fhP" hidden><i class="f"></i></div>';
+ view.appendChild(hud);
+ const btn=document.createElement('button');btn.id='fishbtn';btn.hidden=true;view.appendChild(btn);
+ const fhmsg=$('fhmsg'),fhT=$('fhT'),fhP=$('fhP'),zone=fhT.querySelector('.z'),mark=fhT.querySelector('.m'),pfill=fhP.querySelector('.f');
+
+ // ---------- Stav ----------
+ const F={held:false,st:'idle',t:0,down:false,tx:0,tz:0,sx:0,sy:0,sz:0,fl:0.7,wait:0,win:0,f:null,kg:0,val:0,ten:0,bump:0,jt:0,prog:0.3,perp:0,fromx:0,fromy:0,fromz:0,ring:0};
+ const tipV=new V3();
+ const todMul=()=>{const h=TOD.h;return(h>=5&&h<9)||(h>=17.5&&h<21)?1.3:1;};
+ const R=()=>RODS[S.rod];
+ function applyRod(){blankM.color.set(R().col);}
+ function setHeld(v){
+  if(v===F.held)return;F.held=v;window.__fishHeld=v;
+  if(v){equipped='fist';save();equip();wMesh.add(rod);applyRod();toast('🎣 Prut v ruce – hoď: E / tlačítko dole',2600);}
+  else{reset();if(rod.parent)rod.parent.remove(rod);}
+ }
+ function reset(msg){F.st='idle';F.f=null;bob.visible=false;line.visible=false;rings.forEach(r=>r.visible=false);fishObj.visible=false;if(msg)toast(msg,1800);}
+ function splash(x,z,n){for(let k=0;k<n;k++){const a=Math.random()*6.283,s=1+Math.random()*2.2;fxEmit(x,0.15,z,Math.cos(a)*s,1.2+Math.random()*1.6,Math.sin(a)*s,0.6+Math.random()*0.3,0.9+Math.random()*0.6);}}
+ function pick(){
+  const L=R().luck,tb=FISH.map(f=>({f,w:f.w*(f.rare?L:1)*(f.junk?1/L:1)}));
+  let r=Math.random()*tb.reduce((a,x)=>a+x.w,0);for(const x of tb){r-=x.w;if(r<=0)return x.f;}return tb[0].f;
+ }
+ function tryCast(){
+  const px=P.pos.x,pz=P.pos.z,Rd=Math.hypot(px-LAKE.x,pz-LAKE.z);
+  if(Rd>LAKE.r+60){toast('Jsi daleko od vody. Jezero je na jihu – v mapě 🗺 najdeš 🎣 Rybářské molo.',3200);return;}
+  const okp=(yw,d)=>Math.hypot(px+Math.sin(yw)*d-LAKE.x,pz+Math.cos(yw)*d-LAKE.z)<LAKE.r-6;
+  let yaw=P.yaw,d=0,found=false;
+  for(const yw of [P.yaw,Math.atan2(LAKE.x-px,LAKE.z-pz)]){for(let k=0;k<13&&!found;k++){const dd=11+k*3+Math.random()*2;if(okp(yw,dd)){d=dd;yaw=yw;found=true;}}if(found)break;}
+  if(!found){toast('Tam není voda – jdi blíž (třeba na molo) a zamiř na jezero 🌊',2600);return;}
+  P.yaw=yaw;hero.g.updateMatrixWorld(true);tip.getWorldPosition(tipV);
+  F.sx=tipV.x;F.sy=tipV.y;F.sz=tipV.z;F.tx=px+Math.sin(yaw)*d;F.tz=pz+Math.cos(yaw)*d;F.st='cast';F.t=0;F.fl=0.55+d*0.012;
+  bob.visible=true;line.visible=true;bob.position.set(F.sx,F.sy,F.sz);
+ }
+ function hook(){
+  const f=pick();F.f=f;F.kg=f.flat?0:Math.round((f.a+(f.b-f.a)*Math.pow(Math.random(),1.6))*20)/20;
+  F.val=f.flat?Math.round(f.flat[0]+Math.random()*(f.flat[1]-f.flat[0])):Math.max(1,Math.round(F.kg*f.p));
+  F.st='reel';F.t=0;F.ten=0.5;F.bump=0;F.jt=0.6;F.prog=0.3;F.fromx=F.tx;F.fromz=F.tz;splash(F.tx,F.tz,10);
+  toast('🎣 Zasekl jsi! Drž E / tlačítko a udrž ukazatel v zeleném.',2000);
+ }
+ function press(){
+  if(!F.held||paused)return;F.down=true;
+  if(F.st==='idle')tryCast();
+  else if(F.st==='wait'){reset('Stáhl jsi to příliš brzy 🎣');}
+  else if(F.st==='bite')hook();
+ }
+ const release=()=>{F.down=false;};
+ function land(){
+  const f=F.f,kg=F.kg,val=F.val;F.st='land';F.t=0;buildFish(f,kg);fishObj.visible=true;F.fromx=bob.position.x;F.fromy=0.2;F.fromz=bob.position.z;line.visible=false;bob.visible=false;rings.forEach(r=>r.visible=false);splash(F.fromx,F.fromz,14);
+ }
+ function payoff(){
+  const f=F.f,kg=F.kg,val=F.val;fishObj.visible=false;
+  addMoney(val);S.earned+=val;if(!f.junk&&!f.junk2)S.n++;
+  const r=S.sp[f.id]||(S.sp[f.id]=[0,0]);r[0]++;if(kg>r[1])r[1]=kg;sv();
+  const w=f.flat?'':' '+kgs(kg)+' kg';
+  if(f.legend){toast('🏆 LEGENDA! '+f.n+w+' · +$'+fmt(val),4200);try{chatSend('🎣 Chytil jsem Zlatého kapra'+w+'!');}catch(_){}}
+  else if(f.rare)toast('✨ Vzácný úlovek: '+f.n+w+' · +$'+fmt(val),3400);
+  else if(f.junk)toast(f.e+' '+f.n+'… +$'+fmt(val),2000);
+  else toast(f.e+' '+f.n+w+' · +$'+fmt(val),2600);
+  F.f=null;F.st='idle';
+ }
+
+ // ---------- Aktualizace (každý snímek, po poseHero) ----------
+ const bp=new V3(),tp=new V3();let tm=0,addTry=0;
+ window.__fishU=function(dt){
+  tm+=dt;
+  if(!window.__fishGot){addTry-=dt;if(addTry<=0){addTry=1;if(window.invAdd&&window.invAdd('rod','🎣'))window.__fishGot=true;}}
+  if(F.held&&(drv||RIDE||equipped!=='fist'))setHeld(false);
+  const show=F.held&&!paused&&$('login').hidden;
+  hud.hidden=!show;btn.hidden=!show;
+  if(!F.held)return;
+  if(paused)return;
+  // póza: ruka s prutem
+  if(P.grounded&&!P.rope){hero.armL.rotation.set(-1.05-(F.st==='reel'?F.ten*0.25:0),0,0);wMesh.rotation.x=0.45;}
+  hero.g.updateMatrixWorld(true);tip.getWorldPosition(tp);
+  const px=P.pos.x,pz=P.pos.z;
+  if(F.st!=='idle'&&F.st!=='land'&&Math.hypot(px-F.tx,pz-F.tz)>60)reset('Vlasec se přetrhl – jsi moc daleko.');
+  // logika stavů
+  let msg='Prut připraven – hoď (E)',bobY=0.1,sag=0.5;
+  if(F.st==='cast'){
+   F.t+=dt;const u=Math.min(1,F.t/F.fl);bob.position.set(F.sx+(F.tx-F.sx)*u,F.sy*(1-u)+0.1*u+Math.sin(u*Math.PI)*5,F.sz+(F.tz-F.sz)*u);
+   msg='';sag=0.1;
+   if(u>=1){F.st='wait';F.t=0;F.wait=Math.max(2,(4+Math.random()*9)/(R().speed*todMul()));splash(F.tx,F.tz,6);F.ring=0;}
+  }else if(F.st==='wait'){
+   F.t+=dt;msg='Čekám na záběr… 🎣';bob.position.set(F.tx,0.1+Math.sin(tm*2.2)*0.03,F.tz);
+   if(F.t>=F.wait){F.st='bite';F.t=0;F.win=R().win;splash(F.tx,F.tz,8);try{navigator.vibrate&&navigator.vibrate([60,40,60]);}catch(_){}}
+  }else if(F.st==='bite'){
+   F.t+=dt;msg='‼ ZÁBĚR! Zatáhni!';bob.position.set(F.tx+(Math.random()-0.5)*0.12,0.1-0.22*Math.abs(Math.sin(F.t*16)),F.tz+(Math.random()-0.5)*0.12);
+   if(F.t>=F.win)reset('Ryba ti ujela… 🐟');
+  }else if(F.st==='reel'){
+   const f=F.f,rd=R();F.t+=dt;
+   F.jt-=dt;if(F.jt<=0){F.jt=0.5+Math.random()*(1.3-0.6*f.h);F.bump=Math.max(F.bump,(0.15+0.3*f.h)*(0.6+Math.random()*0.8));}
+   F.bump=Math.max(0,F.bump-dt*1.2);
+   F.ten=Math.max(0,Math.min(1,F.ten+(F.down?0.8:-0.7)*dt));
+   const E=Math.min(1.2,F.ten+F.bump),lo=0.35,hi=0.72+0.03*S.rod;
+   if(E>=1){reset('💥 Vlasec praskl!');}
+   else{
+    if(E>=lo&&E<=hi)F.prog+=dt*0.16*rd.reel/(0.6+f.h*1.2);else if(E>hi)F.prog+=dt*0.05;else F.prog-=dt*(0.06+0.12*f.h);
+    if(F.prog<=0)reset('Ryba se utrhla… 🐟');
+    else if(F.prog>=1)land();
+   }
+   if(F.st==='reel'){
+    msg='Drž E / tlačítko – navíjej';const u=F.prog*0.85,wob=Math.sin(tm*5)*(1.2+F.bump*5)*(1-F.prog);
+    const dx=px-F.fromx,dz=pz-F.fromz,L=Math.hypot(dx,dz)||1;
+    bob.position.set(F.fromx+dx*u+(-dz/L)*wob,0.1-F.bump*0.2,F.fromz+dz*u+(dx/L)*wob);sag=0.15;
+    zone.style.left=(lo*100)+'%';zone.style.width=((hi-lo)*100)+'%';mark.style.left=(Math.min(1,E)*100)+'%';pfill.style.width=Math.max(0,Math.min(1,F.prog))*100+'%';
+    if(Math.random()<dt*10)splash(bob.position.x,bob.position.z,1);
+   }
+  }else if(F.st==='land'){
+   F.t+=dt;const u=Math.min(1,F.t/0.85);msg='';
+   fishObj.position.set(F.fromx+(px-F.fromx)*u,F.fromy+(1.3-F.fromy)*u+Math.sin(u*Math.PI)*2.6,F.fromz+(pz-F.fromz)*u);fishObj.rotation.y+=dt*8;fishObj.rotation.z=Math.sin(tm*20)*0.3;
+   if(u>=1)payoff();
+  }
+  // vlasec
+  if(line.visible&&bob.visible){
+   const a=lineG.attributes.position.array;
+   for(let i=0;i<LN;i++){const q=i/(LN-1);a[i*3]=tp.x+(bob.position.x-tp.x)*q;a[i*3+1]=tp.y+(bob.position.y+0.45-tp.y)*q-Math.sin(q*Math.PI)*sag;a[i*3+2]=tp.z+(bob.position.z-tp.z)*q;}
+   lineG.attributes.position.needsUpdate=true;
+  }
+  // kruhy na vodě
+  const rv=(F.st==='wait'||F.st==='bite'||F.st==='reel');
+  rings.forEach((r,i)=>{r.visible=rv;if(!rv)return;const ph=((tm*0.7+i*0.5)%1),sc=1+ph*3.2;r.position.set(bob.position.x,0.085,bob.position.z);r.scale.setScalar(sc);r.material.opacity=0.55*(1-ph);});
+  // HUD
+  fhmsg.textContent=msg;fhmsg.className=F.st==='bite'?'bite':'';fhmsg.style.display=msg?'inline-block':'none';
+  fhT.hidden=fhP.hidden=F.st!=='reel';
+  const bt=F.st==='idle'?'🎣 Hodit (E)':F.st==='wait'?'Stáhnout (E)':F.st==='bite'?'‼ ZATÁHNI!':F.st==='reel'?'⬅ Drž – navíjej':'…';
+  if(btn.textContent!==bt)btn.textContent=bt;btn.classList.toggle('act',F.st==='bite'||F.st==='reel');
+ };
+
+ // ---------- Vstupy ----------
+ btn.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();try{btn.setPointerCapture(e.pointerId);}catch(_){}press();});
+ ['pointerup','pointercancel'].forEach(n=>btn.addEventListener(n,e=>{e.stopPropagation();release();}));
+ btn.addEventListener('contextmenu',e=>e.preventDefault());
+ window.addEventListener('keydown',e=>{if(e.code!=='KeyE'||e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;const t=e.target&&e.target.tagName;if(t==='INPUT'||t==='TEXTAREA'||t==='SELECT')return;if(!$('login').hidden||rebind||!F.held)return;e.preventDefault();press();});
+ window.addEventListener('keyup',e=>{if(e.code==='KeyE')release();});
+ window.addEventListener('blur',release);
+ window.invUse=id=>{if(id!=='rod')return false;setHeld(!F.held);return true;};
+
+ // ---------- Telefon: Rybaření (obchod + deník) ----------
+ window.fishPhone=()=>{
+  const rods=RODS.map((r,i)=>{let b;
+   if(i<S.rod)b='<span style="opacity:.6">máš</span>';
+   else if(i===S.rod)b='<b style="color:#7dff9b">✓ používáš</b>';
+   else if(i===S.rod+1)b='<button data-fb="'+i+'" style="padding:4px 8px">Koupit $'+fmt(r.price)+'</button>';
+   else b='<span style="opacity:.5">🔒 $'+fmt(r.price)+'</span>';
+   return '<div class="phm" style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span>🎣 '+r.n+'<br><small style="opacity:.6">záběr ×'+r.speed+' · štěstí ×'+r.luck+'</small></span>'+b+'</div>';}).join('');
+  const dia=FISH.map(f=>{const r=S.sp[f.id];return '<div class="phm" style="display:flex;justify-content:space-between"><span>'+(r?f.e+' '+f.n:'❔ ???')+'</span><span style="opacity:.75">'+(r?r[0]+'×'+(r[1]?' · max '+kgs(r[1])+' kg':''):'')+'</span></div>';}).join('');
+  return '<h3 style="margin:4px 0">🎣 Rybaření</h3><div style="background:#12306a;border-radius:14px;padding:10px"><div style="opacity:.7;font-size:11px">Chyceno ryb</div><div style="font-size:22px;font-weight:700">'+S.n+' <span style="font-size:12px;font-weight:400;opacity:.8">· vyděláno $'+fmt(S.earned)+'</span></div></div>'
+   +'<button data-fb="hold" style="margin-top:8px">'+(F.held?'Odložit prut':'Vzít prut do ruky')+'</button>'
+   +'<div style="margin:10px 0 2px;font-weight:700">Pruty</div>'+rods
+   +'<div style="margin:10px 0 2px;font-weight:700">Deník úlovků</div>'+dia
+   +'<div class="phm" style="opacity:.7;font-size:11px;border:0">💡 Ryby berou líp za úsvitu a za soumraku. Při zdolávání drž E / tlačítko a udrž ukazatel v zeleném pásmu – moc silný tah vlasec přetrhne.</div>';
+ };
+ window.fishBuy=v=>{
+  if(v==='hold'){setHeld(!F.held);return;}
+  const i=+v;if(i!==S.rod+1||!RODS[i])return;
+  if(money<RODS[i].price){toast('Nemáš dost peněz – chybí $'+fmt(RODS[i].price-money),2200);return;}
+  addMoney(-RODS[i].price);S.rod=i;sv();applyRod();toast('🎣 Nový prut: '+RODS[i].n+'!',2600);
+ };
+ window.__fishPier={x:DX,z:DZ0-6};
 })();
 
 requestAnimationFrame(loop);
