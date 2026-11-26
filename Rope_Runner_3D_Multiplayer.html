@@ -1188,7 +1188,7 @@ function mpCarSync(q){
   else g=makeCarMesh(new THREE.MeshStandardMaterial({color:v.c,roughness:0.28,metalness:0.55}));
   scene.add(g);q.car=g;q.carKey=key;
  }
- const gp=q.model.g.position;q.car.visible=true;q.car.position.set(gp.x,gp.y-0.92,gp.z);q.car.rotation.y=q.yaw;if(v.k==='gtr')q.car.rotation.x=v.pt||0;if(v.k==='heli'){const u=q.car.userData;u.tilt.rotation.x=v.pt||0;u.rotor.rotation.y=performance.now()/1000*35;u.trot.rotation.x=performance.now()/1000*40;}
+ const gp=q.model.g.position;q.car.visible=true;q.car.position.set(gp.x,gp.y-0.92,gp.z);q.car.rotation.y=q.yaw;if(v.k==='gtr')q.car.rotation.x=v.pt||0;if(v.k==='heli'){const u=q.car.userData;u.tilt.rotation.x=v.pt||0;u.rotor.rotation.y=performance.now()/1000*35;u.trot.rotation.x=performance.now()/1000*40;u.disc.material.opacity=0.16;}
 }
 // ===== spolujízda: do každého auta se vejdou 4 lidé, do GT-R 2 (včetně řidiče) =====
 function nearRemote(){let best=null,bd=9;for(const [id,q] of MP.players){if(!q.veh||q.ride)continue;const gp=q.model.g.position,d=Math.hypot(P.pos.x-gp.x,P.pos.z-gp.z);if(d<bd&&Math.abs(P.pos.y-gp.y)<6){bd=d;best={id,d};}}return best;}
@@ -1952,19 +1952,38 @@ function carPair(a,b){if(Math.hypot(b.x-a.x,b.z-a.z)>6)return null;const K=[-1.3
  for(const i of K)for(const j of K){const dx=b.x+sb*j-(a.x+sa*i),dz=b.z+cb*j-(a.z+ca*i),d=Math.hypot(dx,dz);if(d<2&&d>0.01&&(!best||d<best.d))best={dx,dz,d,o:2-d};}
  return best;}
 function makeHeli(){const g=new THREE.Group(),t=new THREE.Group();g.add(t);
- const paint=new THREE.MeshStandardMaterial({color:0xc8202a,roughness:0.3,metalness:0.5}),dk=new THREE.MeshStandardMaterial({color:0x222428,roughness:0.6,metalness:0.4});
+ const paint=new THREE.MeshStandardMaterial({color:0xc8202a,roughness:0.3,metalness:0.5}),dk=new THREE.MeshStandardMaterial({color:0x222428,roughness:0.6,metalness:0.4}),wh=new THREE.MeshStandardMaterial({color:0xf2f2f2,roughness:0.35,metalness:0.3}),gl=new THREE.MeshStandardMaterial({color:0x1b2a38,roughness:0.05,metalness:0.7}),mt=new THREE.MeshStandardMaterial({color:0x8a8f96,roughness:0.4,metalness:0.8});
  const add=(geo,m,x,y,z,p)=>{const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);o.castShadow=true;(p||t).add(o);return o;};
- add(new THREE.SphereGeometry(1,16,12),paint,0,1.35,0.2).scale.set(1.15,1.05,2.0);
- add(new THREE.SphereGeometry(1,16,12),GM.glass,0,1.55,1.05).scale.set(1.0,0.85,1.15);
- add(new THREE.CylinderGeometry(0.16,0.34,3.8,8),paint,0,1.6,-2.9).rotation.x=Math.PI/2;
- add(new THREE.BoxGeometry(0.1,1.1,0.8),paint,0,2.05,-4.6);
- add(new THREE.CylinderGeometry(0.1,0.1,0.5,6),dk,0,2.6,0.1);
- for(const s of [-1,1]){add(new THREE.CylinderGeometry(0.05,0.05,3.2,6),dk,s*1.0,0.12,0.3).rotation.x=Math.PI/2;for(const z of [-0.5,1.1])add(new THREE.CylinderGeometry(0.04,0.04,0.9,5),dk,s*0.95,0.55,z);}
- const rotor=new THREE.Group();rotor.position.set(0,2.85,0.1);t.add(rotor);
- for(let i=0;i<2;i++)add(new THREE.BoxGeometry(9,0.05,0.38),dk,0,0,0,rotor).rotation.y=i*Math.PI/2;
- const trot=new THREE.Group();trot.position.set(0.25,2.05,-4.6);t.add(trot);add(new THREE.BoxGeometry(0.05,1.5,0.15),dk,0,0,0,trot);
- g.userData={paint,rotor,trot,tilt:t};return g;}
-function heliFx(v,dt){const u=v.g.userData,on=drv&&car===v;v.rs=(v.rs||0)+((on?1:0)-(v.rs||0))*Math.min(1,1.5*dt);u.rotor.rotation.y+=v.rs*dt*35;u.trot.rotation.x+=v.rs*dt*40;u.tilt.rotation.x=v.pt||0;u.tilt.rotation.z=v.rl||0;}
+ // trup: kabina, spodek, přední sklo, boční okna, dveře, pruh
+ add(new THREE.SphereGeometry(1,20,14),paint,0,1.4,0.1).scale.set(1.2,1.1,2.1);
+ add(new THREE.BoxGeometry(1.7,0.35,3.0),dk,0,0.5,0.1);
+ add(new THREE.SphereGeometry(1,18,12),gl,0,1.55,1.2).scale.set(1.02,0.82,1.05);
+ add(new THREE.BoxGeometry(2.46,0.16,3.3),wh,0,1.2,0.1).scale.set(1,1,1);
+ for(const s of [-1,1]){add(new THREE.BoxGeometry(0.04,0.55,0.95),gl,s*1.19,1.65,0.55);add(new THREE.BoxGeometry(0.04,0.55,0.8),gl,s*1.12,1.65,-0.65);add(new THREE.BoxGeometry(0.05,0.9,0.03),dk,s*1.2,1.35,-0.05);}
+ // motor, výfuky, nosič rotoru
+ add(new THREE.CylinderGeometry(0.55,0.65,1.7,12),paint,0,2.45,-0.2).rotation.x=Math.PI/2;
+ for(const s of [-1,1])add(new THREE.CylinderGeometry(0.12,0.1,0.5,8),mt,s*0.35,2.35,-1.2).rotation.x=Math.PI/2;
+ add(new THREE.CylinderGeometry(0.11,0.14,0.55,8),mt,0,2.95,0.1);
+ // ocasní nosník, stabilizátory, ocasní kolo
+ add(new THREE.CylinderGeometry(0.17,0.4,4.2,10),paint,0,1.75,-3.0).rotation.x=Math.PI/2;
+ add(new THREE.BoxGeometry(0.1,1.5,1.0),paint,0,2.35,-4.9).rotation.x=-0.25;
+ add(new THREE.BoxGeometry(1.8,0.07,0.55),paint,0,1.9,-4.5);
+ add(new THREE.BoxGeometry(0.1,0.3,0.7),wh,0,2.9,-5.2);
+ // světla: červené/zelené navigační + reflektor
+ add(new THREE.SphereGeometry(0.09,8,6),new THREE.MeshBasicMaterial({color:0xff2222}),-0.9,1.9,-4.5);
+ add(new THREE.SphereGeometry(0.09,8,6),new THREE.MeshBasicMaterial({color:0x22ff66}),0.9,1.9,-4.5);
+ add(new THREE.SphereGeometry(0.2,10,8),new THREE.MeshBasicMaterial({color:0xfff6c8}),0,0.55,1.5);
+ // lyže + vzpěry
+ for(const s of [-1,1]){add(new THREE.CylinderGeometry(0.06,0.06,3.4,8),dk,s*1.05,0.12,0.2).rotation.x=Math.PI/2;for(const z of [-0.6,1.0]){const st=add(new THREE.CylinderGeometry(0.04,0.04,0.95,6),dk,s*1.0,0.58,z);st.rotation.z=s*0.12;}}
+ // hlavní rotor (4 listy) + rozmazaný disk
+ const rotor=new THREE.Group();rotor.position.set(0,3.25,0.1);t.add(rotor);
+ for(let i=0;i<2;i++){const b=add(new THREE.BoxGeometry(9.6,0.05,0.4),dk,0,0,0,rotor);b.rotation.y=i*Math.PI/2;}
+ const disc=new THREE.Mesh(new THREE.CircleGeometry(4.8,32),new THREE.MeshBasicMaterial({color:0xcccccc,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false}));disc.rotation.x=-Math.PI/2;disc.position.set(0,3.25,0.1);t.add(disc);
+ // ocasní rotor
+ const trot=new THREE.Group();trot.position.set(0.28,2.35,-5.0);t.add(trot);
+ add(new THREE.BoxGeometry(0.05,1.6,0.16),dk,0,0,0,trot);add(new THREE.BoxGeometry(0.05,0.16,1.6),dk,0,0,0,trot);
+ g.userData={paint,rotor,trot,tilt:t,disc};return g;}
+function heliFx(v,dt){const u=v.g.userData,on=drv&&car===v;v.rs=(v.rs||0)+((on?1:0)-(v.rs||0))*Math.min(1,1.5*dt);u.rotor.rotation.y+=v.rs*dt*35;u.trot.rotation.x+=v.rs*dt*40;u.tilt.rotation.x=v.pt||0;u.tilt.rotation.z=v.rl||0;u.disc.material.opacity=0.16*v.rs;}
 function heliPhys(dt){
  const fw=canDrive&&holds.f.size>0,bk=canDrive&&holds.b.size>0,st=(holds.r.size>0?1:0)-(holds.l.size>0?1:0),up=holds.rope.size>0,dn=holds.aim.size>0;
  car.cd-=dt;
