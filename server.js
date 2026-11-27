@@ -5,6 +5,7 @@ const path = require('path');
 const WebSocket = require('ws');
 const crypto = require('crypto');
 const zlib = require('zlib');
+const https = require('https');
 
 const PORT = Number(process.env.PORT || 8080);
 const GAME_FILE = path.join(__dirname, 'Rope_Runner_3D_Multiplayer.html');
@@ -38,6 +39,74 @@ function loadGame(cb) {
         cb(null, GAME_CACHE);
       });
     });
+  });
+}
+
+// ===== Claude 🤖 v herním mobilu – jen pro vývojáře (Matýsek, Kuba) =====
+// Klíč se NIKDY neposílá do hry: nastav proměnnou prostředí ANTHROPIC_API_KEY (volitelně CLAUDE_MODEL).
+const DEV_HASHES = {
+  [ADMIN_NAME]: ADMIN_HASH,
+  kuba: process.env.KUBA_HASH || 'ef4afa1b05cac2c2623a0a5c422d29a2d4f52e9586e2f1bb2cd7374b2020c68c'
+};
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5-5';
+const CLAUDE_SYSTEM = 'Jsi Claude, AI asistent zabudovaný do mobilu ve hře Rope Runner 3D (3D hra na sídlišti: lano, auta, mise, zbraně, multiplayer). ' +
+  'Mluvíš s vývojářem hry (jméno: {name}). Odpovídej česky, stručně a přehledně – čte to někdo na malé obrazovce telefonu. ' +
+  'Pomáháš s nápady na novinky, hledáním chyb a kódem. Do hry nevidíš a nic v ní sám neměníš; když potřebuješ kód, ať ti ho vloží. Nic si nevymýšlej – když něco nevíš, řekni to.';
+const claudeFails = new Map(); // ip -> { n, until }
+const claudeLast = new Map();  // jméno -> čas posledního dotazu
+function jsonRes(res, code, obj) {
+  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify(obj));
+}
+function handleClaude(req, res) {
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  const f = claudeFails.get(ip);
+  if (f && f.n >= 5 && Date.now() < f.until) return jsonRes(res, 429, { error: 'Moc špatných pokusů, zkus to za chvíli.' });
+  let size = 0; const chunks = [];
+  req.on('data', c => { size += c.length; if (size > 24000) { req.destroy(); return; } chunks.push(c); });
+  req.on('end', () => {
+    let m; try { m = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return jsonRes(res, 400, { error: 'Špatný požadavek.' }); }
+    if (!m || typeof m !== 'object') return jsonRes(res, 400, { error: 'Špatný požadavek.' });
+    const name = String(m.name || '').toLowerCase();
+    const h = crypto.createHash('sha256').update(name + ':' + String(m.pass || '')).digest('hex');
+    if (!(Object.prototype.hasOwnProperty.call(DEV_HASHES, name) && DEV_HASHES[name] === h)) {
+      const e = claudeFails.get(ip) || { n: 0, until: 0 }; e.n++; e.until = Date.now() + 10 * 60000; claudeFails.set(ip, e);
+      return jsonRes(res, 401, { error: 'Jen pro vývojáře (špatné jméno nebo heslo).' });
+    }
+    claudeFails.delete(ip);
+    const key = process.env.ANTHROPIC_API_KEY;
+    if (!key) return jsonRes(res, 503, { error: 'Na serveru chybí ANTHROPIC_API_KEY.' });
+    const now = Date.now();
+    if (now - (claudeLast.get(name) || 0) < 2000) return jsonRes(res, 429, { error: 'Moc rychle, počkej chvilku.' });
+    claudeLast.set(name, now);
+    let msgs = Array.isArray(m.messages) ? m.messages.slice(-20)
+      .filter(x => x && (x.role === 'user' || x.role === 'assistant') && typeof x.content === 'string' && x.content.trim())
+      .map(x => ({ role: x.role, content: x.content.slice(0, 2000) })) : [];
+    while (msgs.length && msgs[0].role !== 'user') msgs.shift();
+    const clean = [];
+    for (const x of msgs) { const l = clean[clean.length - 1]; if (l && l.role === x.role) l.content += '\n' + x.content; else clean.push(x); }
+    if (!clean.length || clean[clean.length - 1].role !== 'user') return jsonRes(res, 400, { error: 'Prázdná zpráva.' });
+    const body = JSON.stringify({
+      model: CLAUDE_MODEL, max_tokens: 800,
+      system: CLAUDE_SYSTEM.replace('{name}', String(m.name).replace(/[<>]/g, '').slice(0, 20)),
+      messages: clean
+    });
+    const rq = https.request({
+      hostname: 'api.anthropic.com', path: '/v1/messages', method: 'POST', timeout: 45000,
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-length': Buffer.byteLength(body) }
+    }, r => {
+      const parts = [];
+      r.on('data', c => parts.push(c));
+      r.on('end', () => {
+        let j = null; try { j = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch {}
+        if (r.statusCode !== 200 || !j) { console.error('Claude API:', r.statusCode, j && j.error && j.error.message); return jsonRes(res, 502, { error: 'Claude API chyba (' + r.statusCode + ').' }); }
+        const text = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+        jsonRes(res, 200, { text: text || '(prázdná odpověď)' });
+      });
+    });
+    rq.on('timeout', () => rq.destroy(new Error('timeout')));
+    rq.on('error', e => { console.error('Claude API:', e.message); if (!res.headersSent) jsonRes(res, 502, { error: 'Claude neodpovídá.' }); });
+    rq.end(body);
   });
 }
 
@@ -82,6 +151,8 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+
+  if (pathname === '/claude' && req.method === 'POST') { handleClaude(req, res); return; }
 
   res.writeHead(404);
   res.end('Not found');
