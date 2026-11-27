@@ -70,8 +70,8 @@ let nextId = 1;
 const clients = new Map();
 
 // ===== Spolujízda: do každého auta se vejdou 4 lidé (včetně řidiče), do G-Wagonu 6, do GT-R jen 2 =====
-const VEH_KINDS = ['std', 'm4', 'gtr', 'gw', 'gle', 'sc'];
-const seatCap = d => (d.veh && d.veh.k === 'gtr') ? 2 : (d.veh && d.veh.k === 'gw') ? 6 : 4;
+const VEH_KINDS = ['std', 'm4', 'gtr', 'gw', 'gle', 'sc', 'heli'];
+const seatCap = d => (d.veh && (d.veh.k === 'gtr' || d.veh.k === 'heli')) ? 2 : (d.veh && d.veh.k === 'gw') ? 6 : 4;
 
 function sendTo(ws, obj) {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
@@ -356,7 +356,8 @@ wss.on('connection', ws => {
         p.veh = {
           k: v.k,
           c: (Number(v.c) >>> 0) & 0xffffff,
-          pt: Number.isFinite(pt) ? Math.max(-1, Math.min(1, pt)) : 0
+          pt: Number.isFinite(pt) ? Math.max(-1, Math.min(1, pt)) : 0,
+          n: v.n ? 1 : 0
         };
       } else if (p.veh) {
         p.veh = null;
