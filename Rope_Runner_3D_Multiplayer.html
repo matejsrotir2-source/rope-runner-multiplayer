@@ -3,9 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rope Runner">
+<meta name="theme-color" content="#0b1220">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <title>Rope Runner 3D – Sídliště</title>
 <style>
 html,body{margin:0;height:100%;background:#0b1220;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;color:#fff;touch-action:none;user-select:none;-webkit-user-select:none}
+@supports(height:100dvh){html,body{height:100dvh}}
+#boot{position:fixed;inset:0;z-index:99999;background:#0b1220;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-size:15px;color:#cfe8ff}
+#boot .bsp{width:44px;height:44px;border-radius:50%;border:4px solid #ffffff22;border-top-color:#2ec4b6;animation:bspin .9s linear infinite}
+@keyframes bspin{to{transform:rotate(360deg)}}
 body{display:flex;flex-direction:column;max-width:560px;margin:0 auto}
 #view{position:relative;flex:1;min-height:0;overflow:hidden}
 canvas{display:block;width:100%;height:100%;touch-action:none}
@@ -131,6 +141,8 @@ body.wide #ctrl #side button#bai:active,body.wide #ctrl #side button#bfi:active{
 /* ===== Inventář (8 slotů) vpravo nahoře ===== */
 #inv{position:absolute;z-index:4;top:max(8px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));display:grid;grid-template-columns:repeat(4,38px);gap:4px;padding:5px;border-radius:12px;background:rgba(11,20,38,.4);border:1px solid rgba(255,255,255,.2);-webkit-touch-callout:none}
 #inv button{position:relative;width:38px;height:38px;padding:0;border-radius:9px;background:rgba(20,33,61,.55);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:20px;line-height:1;touch-action:none;-webkit-tap-highlight-color:transparent}
+#vbtn{position:absolute;z-index:4;top:calc(max(8px,env(safe-area-inset-top)) + 6px);right:calc(max(10px,env(safe-area-inset-right)) + 182px);width:38px;height:38px;padding:0;border-radius:9px;background:rgba(11,20,38,.55);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:20px;line-height:1;touch-action:none;-webkit-tap-highlight-color:transparent}
+#vbtn:active{background:rgba(53,224,255,.25);border-color:#35e0ff}
 #inv button i{position:absolute;left:3px;top:1px;font-style:normal;font-size:9px;opacity:.6}
 #inv button.on{border-color:#35e0ff;box-shadow:0 0 0 2px #35e0ff66;background:rgba(53,224,255,.2)}
 #inv button.mv{border-color:#ffd166;box-shadow:0 0 0 2px #ffd16688;background:rgba(255,209,102,.25)}
@@ -139,6 +151,7 @@ body.wide #hudR{top:calc(max(8px,env(safe-area-inset-top)) + 100px)}
 </style>
 </head>
 <body>
+<div id="boot"><div class="bsp"></div><div>Načítám svět…</div></div>
 <div id="view"><canvas id="ov"></canvas>
  <div id="hudL"><div id="mt"></div><div id="mp"></div><div id="mpstatus" style="font-size:11px;color:#7dff9b">Offline</div><div id="mtime"></div><div id="mmoney"></div><div style="margin-top:4px;width:120px;height:8px;background:#0008;border-radius:4px;overflow:hidden"><div id="hpf" style="height:100%;width:100%;background:#e63946"></div></div><canvas id="mm" width="120" height="66" style="margin-top:5px;border-radius:6px;background:#0b1424cc;border:1px solid #fff3;display:block"></canvas></div>
  <div id="hudR"><button id="bmenu">Mise</button><button id="bgun">Zbraně</button><button id="bcar">Auto</button><button id="bspawn" hidden aria-label="Spawn aut">🚘</button><button id="bfly" hidden>✈️ Vzlet (T)</button><button id="btod" hidden aria-label="Denní doba">🌅</button><button id="bfs" aria-label="Celá obrazovka">⛶</button><button id="bhk" hidden>Hack</button><button id="bpl" hidden>🛡 Správa</button><button id="bmap">🗺 Mapa</button><button id="bchat" aria-label="Chat">💬</button><button id="bphone" aria-label="Mobil">📱</button><button id="bst" aria-label="Nastavení">⚙</button><div id="arrowbox"><div id="arrow">▲</div><div id="adist"></div></div><div id="spd"></div></div>
@@ -150,7 +163,7 @@ body.wide #hudR{top:calc(max(8px,env(safe-area-inset-top)) + 100px)}
 <div id="ctrl"><div id="joy"><div id="joyk"></div></div><div id="pad"><span></span><button id="bw" aria-label="Vpřed">W</button><span></span><button id="bl" aria-label="Doleva">A</button><button id="bs" aria-label="Zpět">S</button><button id="br" aria-label="Doprava">D</button></div><div id="side"><button id="bnit" hidden>🔥 Nitro</button><button id="btr">TRIK</button><button id="bro">LANO</button><button id="bai">MÍŘ</button><button id="bfi">PAL</button></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script>
+<script type="text/plain" id="gamecode">
 (function(){
 const V3=THREE.Vector3;
 const $=id=>document.getElementById(id);
@@ -206,7 +219,15 @@ window.addEventListener('resize',resize);resize();
   if(f&&!isFS()){try{const p=f.call(d);if(p&&p.catch)p.catch(()=>{});}catch(_){}}
   if(coarse.matches){try{const o=screen.orientation;if(o&&o.lock)o.lock('landscape').catch(()=>{});}catch(_){}}
  }
- function toggleFS(){if(isFS()){try{(document.exitFullscreen||document.webkitExitFullscreen).call(document);}catch(_){}}else enterFS();}
+ const IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),
+  STANDALONE=!!(navigator.standalone||matchMedia('(display-mode: standalone)').matches),
+  HAS_FS=!!(document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen);
+ function iosHint(){toast('📲 iPhone nemá fullscreen v Safari. Klepni na Sdílet ⬆️ → „Přidat na plochu“ a hru spusť z ikony – poběží na celou obrazovku.',6500);}
+ function toggleFS(){
+  if(STANDALONE)return;
+  if(IOS&&!HAS_FS){iosHint();return;}
+  if(isFS()){try{(document.exitFullscreen||document.webkitExitFullscreen).call(document);}catch(_){}}else enterFS();}
+ if(STANDALONE)$('bfs').style.display='none';
  $('bfs').addEventListener('click',toggleFS);
  ['lgo','lguest'].forEach(id=>$(id).addEventListener('click',enterFS));
 })();
@@ -1940,6 +1961,29 @@ const camLook={ox:0,oy:0,idle:0};
 // Ovládání jako ve Fortnite: kamera se točí myší/prstem, WASD jde VŽDY podle kamery, postava se otočí do směru chůze. V = přepnout na klasické.
 let CAMREL=true;try{if(localStorage.getItem('rr3d_camrel')==='0')CAMREL=false;}catch(_){}
 const camFree=()=>CAMREL&&!drv&&!RIDE;
+// ===== Pohledy jako v Minecraftu: 1 = první osoba, 0 = třetí osoba (za zády), 2 = třetí osoba (zepředu) =====
+let VIEW=0;try{VIEW=+localStorage.getItem('rr3d_view')||0;}catch(_){}if(!(VIEW>=0&&VIEW<=2))VIEW=0;
+const camView=()=>(VIEW===1&&(drv||RIDE))?0:VIEW; // v autě/jako spolujezdec se první osoba nepoužije
+const VIEW_IC=['🏃','👁','🙂'],VIEW_NM=['Třetí osoba – za zády','První osoba','Třetí osoba – zepředu'];
+function cycleView(){
+ VIEW=VIEW===1?0:VIEW===0?2:1;                       // pořadí jako F5 v Minecraftu: 1. osoba → zezadu → zepředu
+ camLook.oy=Math.max(-0.35,Math.min(1.3,camLook.oy)); // po opuštění 1. osoby srovnat náklon
+ try{localStorage.setItem('rr3d_view',String(VIEW));}catch(_){}
+ const b=document.getElementById('vbtn');if(b)b.textContent=VIEW_IC[VIEW];
+ toast('📷 '+VIEW_NM[VIEW]+((VIEW===1&&(drv||RIDE))?' (v autě nejde)':''),1400);
+}
+(function(){
+ const b=document.createElement('button');b.id='vbtn';b.type='button';b.textContent=VIEW_IC[VIEW];b.setAttribute('aria-label','Přepnout pohled (V / F5)');
+ b.addEventListener('pointerdown',e=>e.stopPropagation());
+ b.addEventListener('click',e=>{e.stopPropagation();cycleView();});
+ view.appendChild(b);
+ window.addEventListener('keydown',e=>{
+  if(e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;
+  if(e.code!=='F5'&&e.code!=='KeyV')return;
+  const t=e.target&&e.target.tagName;if(t==='INPUT'||t==='TEXTAREA'||t==='SELECT')return;
+  if(!$('login').hidden)return;
+  e.preventDefault();cycleView();});
+})();
 window.addEventListener('keydown',e=>{if(e.code!=='KeyV'||e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;const tg=e.target&&e.target.tagName;if(tg==='INPUT'||tg==='TEXTAREA'||tg==='SELECT')return;
  CAMREL=!CAMREL;P.camYaw+=camLook.ox;camLook.ox=0;try{localStorage.setItem('rr3d_camrel',CAMREL?'1':'0');}catch(_){}
  toast(CAMREL?'Ovládání: Fortnite (podle kamery) 🎮':'Ovládání: klasické (tank) 🕹',2200);});
@@ -1950,7 +1994,7 @@ c.addEventListener('contextmenu',e=>e.preventDefault());
 c.addEventListener('pointerdown',e=>{mb(e);if(dr)return;dr=true;pid=e.pointerId;lx=e.clientX;ly=e.clientY;try{c.setPointerCapture(e.pointerId)}catch(_){}});
 c.addEventListener('pointermove',e=>{if(!dr||e.pointerId!==pid)return;mb(e);const dx=e.clientX-lx,dy=e.clientY-ly;lx=e.clientX;ly=e.clientY;
  if(aimOn){P.yaw-=dx*0.006;aim.pitch=Math.max(-1,Math.min(1,aim.pitch-dy*0.004));}
- else if(!paused){if(camFree()){P.camYaw-=dx*0.008;camLook.oy=Math.max(-0.35,Math.min(1.3,camLook.oy+dy*0.006));camLook.idle=0;}else{camLook.ox=Math.max(-Math.PI,Math.min(Math.PI,camLook.ox-dx*0.008));camLook.oy=Math.max(-0.35,Math.min(1.3,camLook.oy+dy*0.006));camLook.idle=0;}}});
+ else if(!paused){if(camFree()){P.camYaw-=dx*0.008;camLook.oy=Math.max(camView()===1?-1.4:-0.35,Math.min(camView()===1?1.4:1.3,camLook.oy+dy*0.006));camLook.idle=0;}else{camLook.ox=Math.max(-Math.PI,Math.min(Math.PI,camLook.ox-dx*0.008));camLook.oy=Math.max(camView()===1?-1.4:-0.35,Math.min(camView()===1?1.4:1.3,camLook.oy+dy*0.006));camLook.idle=0;}}});
 const up=e=>{if(e&&e.pointerId!==pid)return;dr=false;pid=null;camLook.idle=0;holds.fire.delete('m');holds.aim.delete('m');};['pointerup','pointercancel','lostpointercapture'].forEach(n=>c.addEventListener(n,up));
 window.__camDrag=()=>dr;})();
 const NG={t:new THREE.CylinderGeometry(0.24,0.19,0.65,14).scale(1,1,0.6),l:new THREE.CylinderGeometry(0.085,0.065,0.8,10),a:new THREE.CylinderGeometry(0.06,0.05,0.6,8),h:new THREE.SphereGeometry(0.2,16,12),s:new THREE.SphereGeometry(0.09,8,6).scale(1,0.7,1.7),hd:new THREE.SphereGeometry(0.06,8,6),hair:new THREE.SphereGeometry(0.215,16,10,0,Math.PI*2,0,Math.PI*0.5),lh:new THREE.CylinderGeometry(0.15,0.09,0.36,10),nk:new THREE.CylinderGeometry(0.06,0.07,0.12,8),sk:new THREE.CylinderGeometry(0.2,0.31,0.42,14),pk:new THREE.BoxGeometry(0.3,0.36,0.14),eye:new THREE.SphereGeometry(0.025,6,5),cap:new THREE.CylinderGeometry(0.22,0.22,0.08,14),br:new THREE.BoxGeometry(0.2,0.02,0.16),bt:new THREE.CylinderGeometry(0.245,0.2,0.07,14).scale(1,1,0.6),sl:new THREE.SphereGeometry(0.085,8,6)};
@@ -2041,7 +2085,8 @@ function fire(){
  const w=WS[equipped];if(!w||fireCd>0)return;fireCd=w.r/CH.rapid;
  if(equipped==='spray'){sprayShot();return;}
  camera.updateMatrixWorld();
- const o=w.rg<10?P.pos.clone().add(new V3(0,1.2,0)):camera.position.clone(),dir=new V3();camera.getWorldDirection(dir);
+ let o=w.rg<10?P.pos.clone().add(new V3(0,1.2,0)):camera.position.clone(),dir=new V3();camera.getWorldDirection(dir);
+ if(camView()===2&&!aimOn){const fy=P.camYaw+camLook.ox;dir.set(Math.sin(fy),0,Math.cos(fy));if(w.rg>=10)o=P.pos.clone().add(new V3(Math.sin(fy)*0.8,0.7,Math.cos(fy)*0.8));}
  const tg=CH.aim&&(CH.act==='Vždy'||aimOn)?pickTarget():null;
  if(tg)dir.lerp(tg.p.clone().sub(o).normalize(),Math.min(1,1/CH.smooth)).normalize();
  const mz=P.pos.clone().add(new V3(Math.sin(P.yaw)*0.8,0.5,Math.cos(P.yaw)*0.8));
@@ -2186,7 +2231,7 @@ function fallHurt(v){
  toast('Pád −'+d+' HP',1200);
 }
 function poseHero(dt){
- const hg=hero.g;hg.visible=!drv&&!RIDE&&!CH.invis;hg.position.copy(P.pos);
+ const hg=hero.g;hg.visible=!drv&&!RIDE&&!CH.invis&&camView()!==1;hg.position.copy(P.pos);
  const f=new V3(Math.sin(P.yaw),0,Math.cos(P.yaw));
  const hs=Math.hypot(P.vel.x,P.vel.z);
  let u;
@@ -2250,8 +2295,16 @@ function updateCamera(dt){if(GAR.ph){garCam(dt);return;}
  const oyE=(camFree()&&aimOn)?0:camLook.oy,dist=dist0*Math.cos(oyE),height=height0+Math.sin(oyE)*dist0;
  const cy=P.camYaw+camLook.ox;
  const cf=new V3(Math.sin(cy),0,Math.cos(cy));
- const focus=P.pos.clone().addScaledVector(cf,aimOn?14:5).add(new V3(0,1.5+(aimOn?aim.pitch*14:0),0));
- const want=P.pos.clone().addScaledVector(cf,-dist).add(new V3(0,height,0));
+ const EV=(camView()===2&&aimOn)?0:camView(); // při míření ze zepředu se kamera přesune za záda
+ if(EV===1){ // první osoba: kamera v hlavě
+  const eye=P.pos.clone().add(new V3(0,0.72,0)),pit=aimOn?Math.atan(aim.pitch):-camLook.oy,cp=Math.cos(pit);
+  const tgt=eye.clone().add(new V3(Math.sin(cy)*cp,Math.sin(pit),Math.cos(cy)*cp));
+  camPos.copy(eye);camera.position.copy(eye);look.copy(tgt);camera.lookAt(tgt);
+  return;
+ }
+ const fdist=(5+Math.min(60,hs)*0.1)*Math.cos(oyE),fh=2.2+Math.sin(oyE)*6+(P.rope?1.5:0);
+ const focus=EV===2?P.pos.clone().add(new V3(0,1.3,0)):P.pos.clone().addScaledVector(cf,aimOn?14:5).add(new V3(0,1.5+(aimOn?aim.pitch*14:0),0));
+ const want=EV===2?P.pos.clone().addScaledVector(cf,fdist).add(new V3(0,fh,0)):P.pos.clone().addScaledVector(cf,-dist).add(new V3(0,height,0));
  const dir=want.clone().sub(focus),dl=dir.length();dir.multiplyScalar(1/dl);
  let lim=dl;for(const b of boxes){const t=rayBox(focus,dir,b,dl);if(t>0&&t<lim)lim=t-0.8;}
  if(lim<dl)want.copy(focus).addScaledVector(dir,Math.max(2,lim));
@@ -3604,6 +3657,16 @@ applySet();
 })();
 
 requestAnimationFrame(loop);
+})();
+try{const b=document.getElementById('boot');if(b)b.remove();}catch(_){}
+</script>
+<script>
+(function(){
+ var t=document.getElementById('gamecode');
+ function kill(){var b=document.getElementById('boot');if(b)b.remove();}
+ window.addEventListener('error',function(){setTimeout(kill,0);});
+ function run(){var s=document.createElement('script');s.text=t.textContent;document.head.appendChild(s);}
+ requestAnimationFrame(function(){setTimeout(run,30);});
 })();
 </script>
 </body>

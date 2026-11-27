@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const WebSocket = require('ws');
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 const PORT = Number(process.env.PORT || 8080);
 const GAME_FILE = path.join(__dirname, 'Rope_Runner_3D_Multiplayer.html');
@@ -23,13 +24,30 @@ const saveTitles = () => { try { fs.writeFileSync(TITLES_FILE, JSON.stringify(TI
 const NODRIVE = new Set(); // jména hráčů se zakázaným řízením (do restartu serveru)
 const titleKey = n => String(n || '').toLowerCase();
 
+// Hra se jednou přečte a zagzipuje (≈ 5× menší přenos); při změně souboru se načte znovu.
+let GAME_CACHE = null;
+function loadGame(cb) {
+  fs.stat(GAME_FILE, (e, st) => {
+    if (e) return cb(e);
+    if (GAME_CACHE && GAME_CACHE.mtime === st.mtimeMs) return cb(null, GAME_CACHE);
+    fs.readFile(GAME_FILE, (e2, raw) => {
+      if (e2) return cb(e2);
+      const etag = '"' + crypto.createHash('sha1').update(raw).digest('hex') + '"';
+      zlib.gzip(raw, { level: 9 }, (e3, gz) => {
+        GAME_CACHE = { mtime: st.mtimeMs, etag, raw, gz: e3 ? null : gz };
+        cb(null, GAME_CACHE);
+      });
+    });
+  });
+}
+
 const server = http.createServer((req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
 
   console.log('Požadavek:', pathname);
 
   if (pathname === '/' || pathname === '/index.html') {
-    fs.readFile(GAME_FILE, (err, data) => {
+    loadGame((err, g) => {
       if (err) {
         console.error('HTML soubor nenalezen:', err.message);
         res.writeHead(404);
@@ -37,11 +55,30 @@ const server = http.createServer((req, res) => {
         return;
       }
 
-      res.writeHead(200, {
+      // ETag: když se hra nezměnila, prohlížeč nestahuje nic (304)
+      if (req.headers['if-none-match'] === g.etag) {
+        res.writeHead(304, { 'ETag': g.etag, 'Cache-Control': 'no-cache' });
+        res.end();
+        return;
+      }
+
+      const headers = {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'no-cache' // hráči po updatu hned dostanou novou verzi hry
-      });
-      res.end(data);
+        'Cache-Control': 'no-cache', // hráči po updatu hned dostanou novou verzi hry
+        'ETag': g.etag,
+        'Vary': 'Accept-Encoding'
+      };
+      const acceptsGzip = /\bgzip\b/.test(String(req.headers['accept-encoding'] || ''));
+      if (acceptsGzip && g.gz) {
+        headers['Content-Encoding'] = 'gzip';
+        headers['Content-Length'] = g.gz.length;
+        res.writeHead(200, headers);
+        res.end(g.gz);
+      } else {
+        headers['Content-Length'] = g.raw.length;
+        res.writeHead(200, headers);
+        res.end(g.raw);
+      }
     });
     return;
   }
