@@ -1626,8 +1626,8 @@ var PHL=[],DEVPASS='';
  const WC=[['☀️','Slunečno'],['⛅','Polojasno'],['☁️','Zataženo'],['🌦','Přeháňky'],['⛈','Bouřky']];
  const wxAt=(h,off)=>{let x=Math.sin((Math.floor(Date.now()/1800000)+off)*12.9898)*43758.5453;x-=Math.floor(x);const ci=x<0.4?0:x<0.65?1:x<0.85?2:x<0.95?3:4;return{ci,t:Math.round(11+8*Math.sin((h-9)/24*Math.PI*2)-(ci>=3?3:ci===2?1.5:0))};};
  const apps=()=>{const a=[['m','🎯','Mise'],['g','🔫','Zbraně'],['c','🔧','Tuning'],['bank','🏦','Banka'],['chat','💬','Chat'],['wx','🌦','Počasí'],['map','🗺','Mapa'],['pl','👥','Hráči'],['st','⚙','Nastavení'],['fs','⛶','Celá obr.']];
-  if(!$('bspawn').hidden)a.push(['sp','🚘','Auta']);if(!$('btod').hidden)a.push(['tod','🌅','Čas']);if(!$('bhk').hidden)a.push(['hk','🕹','Hack']);if(isCreator||isHelper)a.push(['cl','🤖','Claude']);return a;};
- const EXT={m:()=>togglePanel('m'),g:()=>togglePanel('g'),c:()=>togglePanel('c'),map:()=>openMap(),st:()=>$('bst').click(),sp:()=>togglePanel('s'),tod:()=>togglePanel('d'),hk:()=>$('bhk').click(),adm:()=>$('bpl').click()};
+  if(!$('bspawn').hidden)a.push(['sp','🚘','Auta']);if(!$('btod').hidden)a.push(['tod','🌅','Čas']);if(!$('bhk').hidden)a.push(['hk','🕹','Hack']);if(isCreator||isHelper)a.push(['cl','🤖','Claude']);if(isCreator)a.push(['con','⌨','Console']);return a;};
+ const EXT={m:()=>togglePanel('m'),g:()=>togglePanel('g'),c:()=>togglePanel('c'),map:()=>openMap(),st:()=>$('bst').click(),sp:()=>togglePanel('s'),tod:()=>togglePanel('d'),hk:()=>$('bhk').click(),adm:()=>$('bpl').click(),con:()=>window.mcToggle&&window.mcToggle()};
  let app='home',pend=[],note='',iv=0;
  const logHtml=()=>PHL.slice(-40).map(m=>'<div class="phm"><b style="color:'+(m[2]==='creator'?'#35e0ff':'#ffd166')+'">'+E(m[0])+':</b> '+E(m[1])+'</div>').join('')||'<div style="opacity:.6">Zatím žádné zprávy.</div>';
  const CLM=[];let clBusy=false;
@@ -3923,6 +3923,7 @@ try{const b=document.getElementById('boot');if(b)b.remove();}catch(_){}
   if(box.hidden){if(!built)build();Object.values(holds).forEach(x=>x.clear());$('panel').hidden=true;box.hidden=false;paused=true;setTimeout(()=>{const i=$('mcin');if(i)i.focus();},0);}
   else{box.hidden=true;paused=false;}
  }
+ window.mcToggle=toggle;
  window.mcClose=()=>{box.hidden=true;built=false;box.innerHTML='';busy=false;};
  btn.addEventListener('click',toggle);
  window.addEventListener('keydown',e=>{if(e.code==='Backquote'&&isCreator&&!(e.target&&e.target.tagName==='INPUT')&&$('login').hidden){e.preventDefault();toggle();}});
